@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Exam List</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+
+body{
+background:#f4f7fb;
+}
+
+.card{
+border:none;
+border-radius:15px;
+box-shadow:0 3px 10px rgba(0,0,0,.15);
+}
+
+.card-header{
+font-size:18px;
+font-weight:bold;
+}
+
+.table th{
+background:#0d6efd;
+color:white;
+text-align:center;
+}
+
+.table td{
+vertical-align:middle;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<nav class="navbar navbar-dark bg-primary">
+
+<div class="container">
+
+<a class="navbar-brand fw-bold">
+
+📋 Exam List
+
+</a>
+
+<div>
+
+<a href="exam.html"
+class="btn btn-warning btn-sm">
+
+➕ New Exam
+
+</a>
+
+<a href="dashboard.html"
+class="btn btn-light btn-sm">
+
+🏠 Dashboard
+
+</a>
+
+</div>
+
+</div>
+
+</nav>
+
+<div class="container py-4">
+
+<div class="card">
+
+<div class="card-header bg-primary text-white">
+
+All Exams
+
+</div>
+
+<div class="card-body">
+
+<div class="row mb-3">
+
+<div class="col-md-4">
+
+<input
+type="text"
+id="searchExam"
+class="form-control"
+placeholder="Search Exam..."
+onkeyup="searchExam()">
+
+</div>
+
+<div class="col-md-3">
+
+<select
+id="classFilter"
+class="form-select"
+onchange="searchExam()">
+
+<option value="">All Classes</option>
+
+<option>Play</option>
+<option>Nursery</option>
+<option>KG</option>
+
+<option>Class 1</option>
+<option>Class 2</option>
+<option>Class 3</option>
+<option>Class 4</option>
+<option>Class 5</option>
+
+</select>
+
+</div>
+
+<div class="col-md-3">
+
+<select
+id="statusFilter"
+class="form-select"
+onchange="searchExam()">
+
+<option value="">All Status</option>
+
+<option>Upcoming</option>
+
+<option>Running</option>
+
+<option>Completed</option>
+
+</select>
+
+</div>
+
+<div class="col-md-2">
+
+<button
+class="btn btn-success w-100"
+onclick="window.print()">
+
+🖨 Print
+
+</button>
+
+</div>
+
+</div>
+<div class="table-responsive">
+
+<table class="table table-bordered table-hover">
+
+<thead>
+
+<tr>
+
+<th>SL</th>
+
+<th>Exam</th>
+
+<th>Year</th>
+
+<th>Class</th>
+
+<th>Start Date</th>
+
+<th>End Date</th>
+
+<th>Result Date</th>
+
+<th>Status</th>
+
+<th width="220">Action</th>
+
+</tr>
+
+</thead>
+
+<tbody id="examTableBody">
+
+<!-- Exam Records -->
+
+</tbody>
+
+</table>
+
+</div>
+
+<div class="row mt-3">
+
+<div class="col-md-6">
+
+<h6>
+
+Total Exams :
+<span id="totalExam">0</span>
+
+</h6>
+
+</div>
+
+<div class="col-md-6 text-end">
+
+<button
+class="btn btn-primary"
+onclick="window.location.href='exam.html'">
+
+➕ Add New Exam
+
+</button>
+
+</div>
+
+</div>
+</div>
+
+</div>
+
+</div>
+
+<footer class="text-center py-3 mt-4">
+
+<small>
+
+© 2026 Gobindaganj KG & Junior School
+
+</small>
+
+</footer>
+
+<script type="module" src="js/exam_list.js"></script>
+
+</body>
+
+</html>
