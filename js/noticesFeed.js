@@ -68,6 +68,8 @@ export function renderNoticeFeed(viewerAudience = "all") {
 
         console.error("Notice Feed Error:", error);
 
+        target.innerHTML = "<p class='text-danger small'>Failed to load notices.</p>";
+
     });
 
 }
