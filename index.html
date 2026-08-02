@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Gobindaganj KG & Junior School | School Management System</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="css/style.css">
+
+<style>
+
+body{
+background:#f4f7fb;
+}
+
+.hero{
+background:linear-gradient(135deg,#0d6efd,#0a58ca);
+color:#fff;
+padding:50px 0 70px;
+}
+
+.logo{
+width:80px;
+height:80px;
+display:block;
+margin:0 auto 15px;
+}
+
+.preview-card{
+border:none;
+border-radius:16px;
+box-shadow:0 3px 12px rgba(0,0,0,.08);
+opacity:.65;
+pointer-events:none;
+user-select:none;
+height:100%;
+text-align:center;
+padding:22px 10px;
+position:relative;
+}
+
+.preview-card i{
+font-size:36px;
+margin-bottom:10px;
+display:block;
+color:#0d6efd;
+}
+
+.lock-badge{
+position:absolute;
+top:10px;
+right:14px;
+font-size:14px;
+color:#adb5bd;
+}
+
+.preview-wrap{
+margin-top:-40px;
+}
+
+.login-cta{
+margin-top:-40px;
+}
+
+.stat-preview{
+border-radius:14px;
+padding:18px;
+color:#fff;
+text-align:center;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="hero text-center">
+
+<img src="images/logo.png" class="logo" alt="School Logo" onerror="this.style.display='none'">
+
+<h2 class="fw-bold mb-1">🏫 Gobindaganj K.G & Junior School</h2>
+<p class="mb-0">School Management System</p>
+
+</div>
+
+<div class="container py-5">
+
+<div class="row g-4">
+
+<div class="col-md-7">
+
+<div class="card h-100" style="border:none;border-radius:16px;box-shadow:0 3px 12px rgba(0,0,0,.08);">
+<div class="card-body">
+
+<h5 class="fw-bold mb-3">🏫 বিদ্যালয় সম্পর্কে</h5>
+
+<p class="mb-2">
+Gobindaganj K.G & Junior School শিক্ষার্থীদের মানসম্মত ও যুগোপযোগী শিক্ষা প্রদানে প্রতিশ্রুতিবদ্ধ একটি প্রতিষ্ঠান। এখানে শিক্ষার্থীদের একাডেমিক উন্নয়নের পাশাপাশি নৈতিক ও মানবিক গুণাবলি বিকাশের ওপর গুরুত্ব দেওয়া হয়।
+</p>
+
+<ul class="list-unstyled small text-muted mb-0">
+<li>📍 ঠিকানা: গোবিন্দগঞ্জ, গাইবান্ধা</li>
+<li>📞 যোগাযোগ: স্কুল অফিসে যোগাযোগ করুন</li>
+<li>🕘 অফিস সময়: সকাল ৯টা – বিকাল ৪টা (শনি–বৃহস্পতি)</li>
+</ul>
+
+</div>
+</div>
+
+</div>
+
+<div class="col-md-5">
+
+<div class="card h-100" style="border:none;border-radius:16px;box-shadow:0 3px 12px rgba(0,0,0,.08);">
+<div class="card-body">
+
+<h5 class="fw-bold mb-3">📢 সাম্প্রতিক নোটিশ</h5>
+
+<div id="noticeFeed">
+<p class="text-muted small mb-0">নোটিশ লোড হচ্ছে...</p>
+</div>
+
+</div>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="container preview-wrap py-5">
+
+<h5 class="text-center text-muted mb-4">📊 Dashboard Preview <span class="badge bg-secondary">View Only</span></h5>
+
+<div class="row g-3 mb-4">
+
+<div class="col-6 col-md-3">
+<div class="stat-preview" style="background:#0d6efd;">
+<div class="small">Total Students</div>
+<h3 class="mb-0" id="totalStudents">--</h3>
+</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="stat-preview" style="background:#198754;">
+<div class="small">Total Teachers</div>
+<h3 class="mb-0" id="totalTeachers">--</h3>
+</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="stat-preview" style="background:#fd7e14;">
+<div class="small">Attendance</div>
+<h3 class="mb-0">--</h3>
+</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="stat-preview" style="background:#6f42c1;">
+<div class="small">Fees Collected</div>
+<h3 class="mb-0">--</h3>
+</div>
+</div>
+
+</div>
+
+<div class="row g-3">
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-people"></i>Students</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-person-badge"></i>Teachers</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-cash-coin"></i>Fees</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-calendar-check"></i>Attendance</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-journal-text"></i>Exams &amp; Results</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-megaphone"></i>Notices</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-calendar3"></i>Routine</div>
+</div>
+
+<div class="col-6 col-md-3">
+<div class="preview-card"><span class="lock-badge"><i class="bi bi-lock-fill" style="font-size:14px;"></i></span><i class="bi bi-graph-up"></i>Reports</div>
+</div>
+
+</div>
+
+<div class="text-center mt-4">
+<a href="login.html" class="btn btn-outline-primary btn-lg fw-bold px-4">
+🔐 লগইন করে ভিতরে প্রবেশ করুন
+</a>
+</div>
+
+</div>
+
+<footer class="text-center py-3">
+
+<small class="text-muted">
+© 2026 Gobindaganj KG & Junior School — Powered by Firebase Auth & Firestore
+</small>
+
+</footer>
+
+<script type="module" src="js/firebase.js"></script>
+<script type="module" src="js/auth.js"></script>
+<script type="module" src="js/publicHome.js"></script>
+
+</body>
+
+</html>
