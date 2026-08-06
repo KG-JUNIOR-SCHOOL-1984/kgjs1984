@@ -81,6 +81,7 @@ window.createStudentLogin = async function (studentDocId) {
 
         let uid = null;
         let secondaryApp = null;
+        let isRepair = false;
 
         try {
             secondaryApp = initializeApp(firebaseConfig, "StudentCreation-" + Date.now());
@@ -102,8 +103,32 @@ window.createStudentLogin = async function (studentDocId) {
                 try { await deleteApp(secondaryApp); } catch (e) {}
             }
             if (authErr.code === "auth/email-already-in-use") {
-                alert("A login already exists for this email address.");
-                return;
+
+                const wantsRepair = confirm(
+                    "A login account for this email already exists in Firebase Authentication, " +
+                    "but it may not be properly linked (this can happen if it was created before " +
+                    "Firestore rules allowed saving the role document).\n\n" +
+                    "Click OK to repair/relink it now (you'll need the account's User UID from " +
+                    "Firebase Console → Authentication → Users tab).\n\n" +
+                    "Click Cancel to stop here."
+                );
+
+                if (!wantsRepair) return;
+
+                const pastedUid = prompt(
+                    "Go to Firebase Console → Authentication → Users, find the row for\n" +
+                    student.email + ", and copy its 'User UID' value. Paste it here:",
+                    ""
+                );
+
+                if (!pastedUid || !pastedUid.trim()) {
+                    alert("No UID entered. Nothing was changed.");
+                    return;
+                }
+
+                uid = pastedUid.trim();
+                isRepair = true;
+
             } else if (authErr.code === "auth/operation-not-allowed" || authErr.code === "auth/unauthorized-domain") {
                 alert(
                     "Could not create the login: Email/Password sign-in is disabled for this " +
@@ -135,10 +160,24 @@ window.createStudentLogin = async function (studentDocId) {
             hasLogin: true
         });
 
-        alert(
-            `Login created!\n\nEmail: ${student.email}\nPassword: ${password}\n\n` +
-            "Please share these credentials with the student securely."
-        );
+        if (isRepair) {
+
+            alert(
+                `Login repaired and linked!\n\nEmail: ${student.email}\n\n` +
+                "The account's role is now set to 'student' and connected to this student record.\n\n" +
+                "Note: the password was NOT changed — the student must use whatever password " +
+                "was originally set. If that's unknown, reset it from Firebase Console → " +
+                "Authentication → Users → ⋮ → Reset password."
+            );
+
+        } else {
+
+            alert(
+                `Login created!\n\nEmail: ${student.email}\nPassword: ${password}\n\n` +
+                "Please share these credentials with the student securely."
+            );
+
+        }
 
     } catch (error) {
 
