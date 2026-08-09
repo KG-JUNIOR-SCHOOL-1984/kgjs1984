@@ -61,8 +61,10 @@ const subjectCodes = {
 
 "Introduction to Environment":"ENV108",
 
-"Active English":"AEN109"
+"Active English":"AEN109",
 
+ "Discipline":"DCP110"
+  
 };
 
 // ======================================================
