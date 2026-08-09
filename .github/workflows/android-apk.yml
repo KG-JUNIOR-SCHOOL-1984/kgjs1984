@@ -8,21 +8,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
       - name: Create Android project
+        shell: bash
         run: |
           mkdir -p app/src/main/java/com/kgjs/school
           mkdir -p app/src/main/res/values
@@ -44,46 +45,34 @@ jobs:
               }
           }
 
-          rootProject.name='KGJS'
-          include ':app'
+          rootProject.name = "KGJS"
+          include(":app")
           EOF
 
           cat > build.gradle <<'EOF'
           plugins {
-              id 'com.android.application' version '8.6.1' apply false
+              id "com.android.application" version "8.6.1" apply false
           }
           EOF
 
           cat > app/build.gradle <<'EOF'
           plugins {
-              id 'com.android.application'
+              id "com.android.application"
           }
 
           android {
-              namespace 'com.kgjs.school'
+              namespace "com.kgjs.school"
               compileSdk 35
 
               defaultConfig {
-                  applicationId 'com.kgjs.school'
+                  applicationId "com.kgjs.school"
                   minSdk 24
                   targetSdk 35
                   versionCode 1
-                  versionName '1.0'
+                  versionName "1.0"
               }
           }
-
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.7.0'
-          }
           EOF
-
-          cat > app/src/main/res/values/strings.xml <<'EOF'
-          <resources>
-              <string name="app_name">KG &amp; Junior School</string>
-          </resources>
-          EOF
-
-          mkdir -p app/src/main/res/values
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -92,8 +81,7 @@ jobs:
 
               <application
                   android:theme="@style/AppTheme"
-                  android:label="@string/app_name"
-                  android:usesCleartextTraffic="false">
+                  android:label="KG &amp; Junior School">
 
                   <activity
                       android:name=".MainActivity"
@@ -114,7 +102,6 @@ jobs:
           <resources>
               <style name="AppTheme"
                   parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:fontFamily">sans</item>
               </style>
           </resources>
           EOF
@@ -129,7 +116,7 @@ jobs:
 
           public class MainActivity extends Activity {
 
-              WebView webView;
+              private WebView webView;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -139,6 +126,8 @@ jobs:
 
                   webView.getSettings().setJavaScriptEnabled(true);
                   webView.getSettings().setDomStorageEnabled(true);
+                  webView.getSettings().setDatabaseEnabled(true);
+
                   webView.setWebViewClient(new WebViewClient());
 
                   webView.loadUrl(
