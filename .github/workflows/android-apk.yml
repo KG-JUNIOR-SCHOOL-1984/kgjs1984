@@ -132,7 +132,8 @@ jobs:
 
                   webView.loadUrl(
     "https://kg-junior-school-1984.github.io/kgjs1984/"
-);
+  
+  );
 
                   setContentView(webView);
               }
