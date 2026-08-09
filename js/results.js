@@ -270,7 +270,7 @@ window.editResult = function (docId) {
     setVal("science", result.science || 0);
     setVal("bgs", result.bgs || 0);
     setVal("religion", result.religion || 0);
-    setVal("ict", result.ict || 0);
+    setVal("discipline", result.descipline || 0);
     setVal("resultDate", result.resultDate || "");
 
     window.scrollTo({
@@ -613,7 +613,7 @@ window.saveResult = async function () {
         data.science +
         data.bgs +
         data.religion +
-        data.ict;
+        data.descipline;
 
     const average = total / 7;
 
