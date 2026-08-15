@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -22,15 +23,40 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Create Android project
+      - name: Prepare KGJS Logo
         shell: bash
         run: |
-          mkdir -p app/src/main/java/com/kgjs/school
-          mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
 
           cp assets/kgjs_logo_square_512.png \
             app/src/main/res/drawable/kgjs_logo.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-mdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-hdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-xhdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+      - name: Create Android project
+        shell: bash
+        run: |
+
+          mkdir -p app/src/main/java/com/kgjs/school
+          mkdir -p app/src/main/res/values
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -86,8 +112,7 @@ jobs:
               <application
                   android:theme="@style/AppTheme"
                   android:label="KG &amp; Junior School"
-                  android:icon="@drawable/kgjs_logo"
-                  android:roundIcon="@drawable/kgjs_logo">
+                  android:icon="@mipmap/ic_launcher">
 
                   <activity
                       android:name=".MainActivity"
@@ -101,14 +126,17 @@ jobs:
                   </activity>
 
               </application>
+
           </manifest>
           EOF
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <resources>
+
               <style name="AppTheme"
                   parent="android:style/Theme.Material.Light.NoActionBar">
               </style>
+
           </resources>
           EOF
 
@@ -162,4 +190,3 @@ jobs:
         with:
           name: KGJS-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
