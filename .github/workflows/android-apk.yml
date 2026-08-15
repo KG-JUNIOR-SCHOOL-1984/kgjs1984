@@ -23,6 +23,33 @@ jobs:
           gradle-version: '8.7'
 
       - name: Create Android project
+            - name: Prepare KGJS Logo
+        shell: bash
+        run: |
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/drawable/kgjs_logo.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-xhdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-hdpi/ic_launcher.png
+
+          cp assets/kgjs_logo_square_512.png \
+            app/src/main/res/mipmap-mdpi/ic_launcher.png
         shell: bash
         run: |
           mkdir -p app/src/main/java/com/kgjs/school
