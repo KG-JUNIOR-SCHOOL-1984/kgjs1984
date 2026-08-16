@@ -601,4 +601,98 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
     } else if (ADMIN_ONLY_PAGES.includes(currentPage)) {
-        // Pages restricted to admin only (staff/salary/account
+        // Pages restricted to admin only (staff/salary/accounts/settings/fees/reports)
+        if (role !== "admin") {
+            alert("🔒 Access Denied! Admin login is required to access this page.");
+            if (role === "student") {
+                window.location.href = "student_dashboard.html";
+            } else if (role === "teacher") {
+                window.location.href = "dashboard.html";
+            } else {
+                window.location.href = "index.html";
+            }
+            return;
+        }
+    } else {
+        // Dashboard + shared management pages: admin and teacher both allowed
+        if (role !== "admin" && role !== "teacher") {
+            alert("🔒 Access Denied! Staff login is required to access the dashboard.");
+            if (role === "student") {
+                window.location.href = "student_dashboard.html";
+            } else {
+                window.location.href = "index.html";
+            }
+            return;
+        }
+    }
+});
+
+window.authGuard = async function () {
+    const user = await waitForAuthReady();
+    const activeUser = user || getLocalDemoUser();
+    if (!activeUser) {
+        window.location.href = "index.html";
+    }
+};
+
+window.adminGuard = async function () {
+    await window.authGuard();
+    const role = await window.getUserRole();
+    if (role !== "admin") {
+        alert("🔒 Access Denied! Admin login required.");
+        if (role === "student") {
+            window.location.href = "student_dashboard.html";
+        } else {
+            window.location.href = "index.html";
+        }
+        return false;
+    }
+    return true;
+};
+window.teacherGuard = async function () {
+    await window.authGuard();
+    const teacher = await isTeacher();
+    if (!teacher) {
+        alert("Access Denied!");
+        window.location.href = "dashboard.html";
+    }
+};
+
+window.studentGuard = async function () {
+    await window.authGuard();
+    const student = await isStudent();
+    if (!student) {
+        alert("Access Denied!");
+        window.location.href = "dashboard.html";
+    }
+};
+
+window.togglePasswordVisibility = function (inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const icon = btn ? btn.querySelector("i") : null;
+    if (input.type === "password") {
+        input.type = "text";
+        if (icon) {
+            icon.className = "bi bi-eye-slash";
+        } else if (btn) {
+            btn.textContent = "🙈";
+        }
+    } else {
+        input.type = "password";
+        if (icon) {
+            icon.className = "bi bi-eye";
+        } else if (btn) {
+            btn.textContent = "👁️";
+        }
+    }
+};
+
+window.AUTH_MODULE_VERSION = "V6.1";
+
+console.log("======================================");
+console.log(" School Management System V6.1");
+console.log(" Firebase Authentication Ready");
+console.log(" Role Based Login Enabled");
+console.log("======================================");
