@@ -1,8 +1,7 @@
-// ======================================================
-// Gobindaganj KG & Junior School
-// School Management System V6.1 Stable
-// Firebase Authentication
-// ======================================================
+// =====================================
+// School Management System V6.1
+// STABLE AUTH.JS - PART 1
+// =====================================
 
 import { auth, db } from "./firebase.js";
 
@@ -26,9 +25,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 
-// ======================================================
-// CONFIGURATION
-// ======================================================
+// =====================================
+// SETTINGS
+// =====================================
 
 const BOOTSTRAP_ADMIN_EMAILS = [
     "kgjs1984@gmail.com"
@@ -49,20 +48,31 @@ const ADMIN_ONLY_PAGES = [
     "reports.html"
 ];
 
-const STUDENT_PAGES = [
-    "student_dashboard.html"
-];
 
-const PUBLIC_PAGES = [
-    "",
-    "index.html",
-    "login.html"
-];
+// =====================================
+// LOCAL DEMO USER
+// =====================================
+
+function getLocalDemoUser() {
+    try {
+        const data = localStorage.getItem("demoUser");
+
+        if (!data) return null;
+
+        return JSON.parse(data);
+
+    } catch (error) {
+
+        console.error("Demo user error:", error);
+
+        return null;
+    }
+}
 
 
-// ======================================================
+// =====================================
 // AUTH READY
-// ======================================================
+// =====================================
 
 let authReady = false;
 let authReadyUser = null;
@@ -74,40 +84,30 @@ const authReadyPromise = new Promise((resolve) => {
 });
 
 
-// ======================================================
-// AUTH STATE LISTENER
-// ======================================================
+// =====================================
+// FIREBASE AUTH STATE
+// =====================================
 
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
 
-    if (!authReady) {
-        authReady = true;
-        authReadyUser = user;
-        resolveAuthReady(user);
-    }
+    authReadyUser = user;
+    authReady = true;
+
+    resolveAuthReady(user);
 
     console.log(
         "Firebase Auth State:",
-        user ? user.email : "No user"
+        user ? user.email : "Not logged in"
     );
 
-    if (user) {
-        try {
-            await ensureUserRoleDoc(user);
-        } catch (error) {
-            console.error("Role initialization error:", error);
-        }
-    }
-
-    await handlePageAccess(user);
 });
 
 
-// ======================================================
+// =====================================
 // WAIT FOR AUTH
-// ======================================================
+// =====================================
 
-async function waitForAuthReady() {
+async function waitForAuth() {
 
     if (authReady) {
         return authReadyUser;
@@ -117,130 +117,23 @@ async function waitForAuthReady() {
 }
 
 
-// ======================================================
-// GET CURRENT PAGE
-// ======================================================
+// =====================================
+// SAVE LOGIN TIME
+// =====================================
 
-function getCurrentPage() {
+window.saveLoginTime = function () {
 
-    return (
-        window.location.pathname
-            .split("/")
-            .pop()
-            .toLowerCase()
-        || "index.html"
+    localStorage.setItem(
+        "loginTime",
+        new Date().toISOString()
     );
-}
 
-
-// ======================================================
-// CREATE ADMIN ROLE DOCUMENT
-// ======================================================
-
-async function ensureUserRoleDoc(user) {
-
-    if (!user || !user.uid) {
-        return;
-    }
-
-    const userRef = doc(db, "users", user.uid);
-
-    try {
-
-        const snapshot = await getDoc(userRef);
-
-        if (snapshot.exists()) {
-            return;
-        }
-
-        const email = (user.email || "").toLowerCase();
-
-        if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) {
-
-            await setDoc(userRef, {
-
-                role: "admin",
-
-                name:
-                    user.displayName ||
-                    email.split("@")[0] ||
-                    "Admin",
-
-                email: user.email,
-
-                createdAt: new Date().toISOString()
-
-            });
-
-            console.log(
-                "Admin role created:",
-                email
-            );
-        }
-
-    } catch (error) {
-
-        console.error(
-            "ensureUserRoleDoc:",
-            error
-        );
-
-        // Don't block login because of a role-document error.
-    }
-}
-
-
-// ======================================================
-// GET USER ROLE
-// ======================================================
-
-window.getUserRole = async function () {
-
-    const user = await waitForAuthReady();
-
-    if (!user) {
-        return null;
-    }
-
-    try {
-
-        const userRef = doc(
-            db,
-            "users",
-            user.uid
-        );
-
-        const snapshot = await getDoc(userRef);
-
-        if (!snapshot.exists()) {
-
-            console.warn(
-                "No role document found for:",
-                user.email
-            );
-
-            return null;
-        }
-
-        const data = snapshot.data();
-
-        return data.role || null;
-
-    } catch (error) {
-
-        console.error(
-            "getUserRole error:",
-            error
-        );
-
-        return null;
-    }
 };
 
 
-// ======================================================
+// =====================================
 // LOGIN
-// ======================================================
+// =====================================
 
 window.login = async function () {
 
@@ -250,20 +143,21 @@ window.login = async function () {
     const passwordElement =
         document.getElementById("password");
 
+
     if (!emailElement || !passwordElement) {
 
-        alert(
-            "Login form not found. Please reload the page."
-        );
+        alert("Login form not found.");
 
         return;
     }
 
+
     const email =
-        emailElement.value.trim();
+        emailElement.value.trim().toLowerCase();
 
     const password =
         passwordElement.value;
+
 
     if (!email || !password) {
 
@@ -274,39 +168,44 @@ window.login = async function () {
         return;
     }
 
+
+    const remember =
+        document.getElementById("rememberMe")?.checked;
+
+
     const loginButton =
         document.querySelector(
             '#loginForm button[type="submit"]'
         );
 
+
     try {
 
         if (loginButton) {
+
             loginButton.disabled = true;
+
             loginButton.innerHTML =
                 "⏳ Logging in...";
         }
 
-        const remember =
-            document.getElementById("rememberMe")?.checked;
 
-        if (remember) {
+        // ---------------------------------
+        // Persistence
+        // ---------------------------------
 
-            await setPersistence(
-                auth,
-                browserLocalPersistence
-            );
-
-        } else {
-
-            await setPersistence(
-                auth,
-                browserSessionPersistence
-            );
-        }
+        await setPersistence(
+            auth,
+            remember
+                ? browserLocalPersistence
+                : browserSessionPersistence
+        );
 
 
-        // Firebase Email/Password Login
+        // ---------------------------------
+        // Firebase Login
+        // ---------------------------------
+
         const credential =
             await signInWithEmailAndPassword(
                 auth,
@@ -314,8 +213,9 @@ window.login = async function () {
                 password
             );
 
-        const user =
-            credential.user;
+
+        const user = credential.user;
+
 
         console.log(
             "Login successful:",
@@ -323,19 +223,26 @@ window.login = async function () {
         );
 
 
-        // Make sure admin role exists
+        // ---------------------------------
+        // Ensure role document
+        // ---------------------------------
+
         await ensureUserRoleDoc(user);
 
 
+        // ---------------------------------
+        // Get role
+        // ---------------------------------
+
         const role =
-            await window.getUserRole();
+            await getUserRole();
 
 
         if (!role) {
 
             alert(
-                "Login successful, but no user role was found.\n\n" +
-                "Please create the user's role in Firestore."
+                "Login successful, but your account role was not found.\n\n" +
+                "Please contact the administrator."
             );
 
             await signOut(auth);
@@ -344,22 +251,30 @@ window.login = async function () {
         }
 
 
-        alert(
-            "Login Successful!\nRole: " + role
-        );
+        saveLoginTime();
 
 
+        alert("Login Successful!");
+
+
+        // ---------------------------------
         // Redirect
+        // ---------------------------------
+
         if (role === "student") {
 
-            window.location.href =
-                "student_dashboard.html";
+            window.location.replace(
+                "student_dashboard.html"
+            );
 
         } else {
 
-            window.location.href =
-                "dashboard.html";
+            window.location.replace(
+                "dashboard.html"
+            );
+
         }
+
 
     } catch (error) {
 
@@ -368,7 +283,71 @@ window.login = async function () {
             error
         );
 
-        showAuthError(error);
+
+        let message =
+            "Login failed.";
+
+
+        switch (error.code) {
+
+            case "auth/invalid-credential":
+                message =
+                    "Email or password is incorrect.";
+                break;
+
+
+            case "auth/user-not-found":
+                message =
+                    "This email account was not found.";
+                break;
+
+
+            case "auth/wrong-password":
+                message =
+                    "Incorrect password.";
+                break;
+
+
+            case "auth/invalid-email":
+                message =
+                    "Please enter a valid email address.";
+                break;
+
+
+            case "auth/too-many-requests":
+                message =
+                    "Too many failed attempts. Please try again later.";
+                break;
+
+
+            case "auth/network-request-failed":
+                message =
+                    "Internet connection problem. Please check your connection.";
+                break;
+
+
+            case "auth/operation-not-allowed":
+                message =
+                    "Email/Password login is disabled in Firebase Authentication.";
+                break;
+
+
+            case "auth/unauthorized-domain":
+                message =
+                    "This website domain is not authorized in Firebase Authentication.";
+                break;
+
+
+            default:
+                message =
+                    error.message || "Unknown login error.";
+        }
+
+
+        alert(
+            "Login Failed:\n\n" + message
+        );
+
 
     } finally {
 
@@ -379,231 +358,359 @@ window.login = async function () {
             loginButton.innerHTML =
                 "🔐 Login";
         }
+
     }
+
 };
 
 
-// ======================================================
-// AUTH ERROR MESSAGE
-// ======================================================
+// =====================================
+// CREATE / ENSURE USER ROLE
+// =====================================
 
-function showAuthError(error) {
+async function ensureUserRoleDoc(user) {
 
-    let message =
-        "Login failed.";
-
-    switch (error.code) {
-
-        case "auth/invalid-credential":
-            message =
-                "Email অথবা Password ভুল।";
-            break;
-
-        case "auth/user-not-found":
-            message =
-                "এই Email দিয়ে কোনো account পাওয়া যায়নি।";
-            break;
-
-        case "auth/wrong-password":
-            message =
-                "Password ভুল।";
-            break;
-
-        case "auth/invalid-email":
-            message =
-                "সঠিক Email Address দিন।";
-            break;
-
-        case "auth/too-many-requests":
-            message =
-                "অনেকবার ভুল login হয়েছে। কিছুক্ষণ পরে চেষ্টা করুন।";
-            break;
-
-        case "auth/network-request-failed":
-            message =
-                "Internet connection অথবা Firebase connection সমস্যা হয়েছে।";
-            break;
-
-        case "auth/operation-not-allowed":
-            message =
-                "Firebase Console-এ Email/Password Authentication চালু নেই।";
-            break;
-
-        case "auth/unauthorized-domain":
-            message =
-                "এই website domain Firebase Authentication-এ Authorized নয়।";
-            break;
-
-        case "auth/user-disabled":
-            message =
-                "এই accountটি Firebase থেকে disabled করা হয়েছে।";
-            break;
-
-        default:
-            message =
-                error.message ||
-                "Unknown authentication error.";
+    if (!user || !user.uid) {
+        return;
     }
 
-    alert(
-        "Login Failed:\n\n" +
-        message +
-        "\n\nError code: " +
-        (error.code || "unknown")
-    );
+
+    const userRef =
+        doc(db, "users", user.uid);
+
+
+    try {
+
+        const snapshot =
+            await getDoc(userRef);
+
+
+        if (snapshot.exists()) {
+
+            return;
+        }
+
+
+        const email =
+            (user.email || "")
+                .toLowerCase();
+
+
+        // ---------------------------------
+        // Bootstrap Admin
+        // ---------------------------------
+
+        if (
+            BOOTSTRAP_ADMIN_EMAILS
+                .includes(email)
+        ) {
+
+            await setDoc(
+                userRef,
+                {
+                    role: "admin",
+                    name:
+                        user.displayName ||
+                        email.split("@")[0] ||
+                        "Admin",
+                    email: user.email,
+                    createdAt:
+                        new Date().toISOString()
+                }
+            );
+
+
+            console.log(
+                "Admin role created:",
+                email
+            );
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Role document error:",
+            error
+        );
+
+        throw error;
+    }
+
 }
 
 
-// ======================================================
-// LOGOUT
-// ======================================================
+// =====================================
+// GET USER ROLE
+// =====================================
 
-window.logout = async function () {
-
-    try {
-
-        await signOut(auth);
-
-        localStorage.removeItem("loginTime");
-
-        alert(
-            "Logout Successful"
-        );
-
-        window.location.href =
-            "index.html";
-
-    } catch (error) {
-
-        console.error(
-            "Logout Error:",
-            error
-        );
-
-        window.location.href =
-            "index.html";
-    }
-};
-
-
-// ======================================================
-// PASSWORD RESET
-// ======================================================
-
-window.resetPassword = async function () {
-
-    const emailElement =
-        document.getElementById("email");
-
-    if (!emailElement) {
-        return;
-    }
-
-    const email =
-        emailElement.value.trim();
-
-    if (!email) {
-
-        alert(
-            "প্রথমে Email Address লিখুন।"
-        );
-
-        emailElement.focus();
-
-        return;
-    }
-
-    try {
-
-        await sendPasswordResetEmail(
-            auth,
-            email
-        );
-
-        alert(
-            "Password reset email পাঠানো হয়েছে।\n" +
-            "আপনার Email Inbox চেক করুন।"
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Password Reset Error:",
-            error
-        );
-
-        let message =
-            error.message;
-
-        if (
-            error.code ===
-            "auth/user-not-found"
-        ) {
-
-            message =
-                "এই Email দিয়ে কোনো account পাওয়া যায়নি।";
-        }
-
-        if (
-            error.code ===
-            "auth/invalid-email"
-        ) {
-
-            message =
-                "সঠিক Email Address দিন।";
-        }
-
-        alert(
-            "Password Reset Failed:\n\n" +
-            message
-        );
-    }
-};
-
-
-// ======================================================
-// EMAIL VERIFICATION
-// ======================================================
-
-window.verifyEmail = async function () {
+async function getUserRole() {
 
     const user =
-        await waitForAuthReady();
+        await waitForAuth();
 
-    if (!user) {
 
-        alert(
-            "প্রথমে Login করুন।"
-        );
+    // ---------------------------------
+    // Firebase user
+    // ---------------------------------
 
-        return;
+    if (user) {
+
+        try {
+
+            const userRef =
+                doc(db, "users", user.uid);
+
+
+            const snapshot =
+                await getDoc(userRef);
+
+
+            if (!snapshot.exists()) {
+
+                return null;
+            }
+
+
+            return snapshot.data().role || null;
+
+
+        } catch (error) {
+
+            console.error(
+                "Get role error:",
+                error
+            );
+
+            return null;
+        }
     }
 
-    try {
 
-        await sendEmailVerification(user);
+    // ---------------------------------
+    // Demo user
+    // ---------------------------------
 
-        alert(
-            "Verification email পাঠানো হয়েছে।"
-        );
+    const demoUser =
+        getLocalDemoUser();
 
-    } catch (error) {
 
-        console.error(
-            "Verification Error:",
-            error
-        );
+    if (
+        demoUser &&
+        demoUser.role
+    ) {
 
-        alert(
-            error.message
-        );
+        return demoUser.role;
     }
+
+
+    return null;
+}
+
+
+// Make available to other JS files
+
+window.getUserRole =
+    getUserRole;
+
+
+// =====================================
+// CURRENT USER
+// =====================================
+
+window.getCurrentUser = function () {
+
+    return (
+        auth.currentUser ||
+        getLocalDemoUser()
+    );
+
 };
 
 
-// ======================================================
-// REGISTER USER
-// ======================================================
+// =====================================
+// USER NAME
+// =====================================
+
+window.getUserName = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return "";
+
+
+    return (
+        user.displayName ||
+        user.name ||
+        ""
+    );
+
+};
+
+
+// =====================================
+// USER EMAIL
+// =====================================
+
+window.getUserEmail = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return "";
+
+
+    return user.email || "";
+
+};
+
+
+// =====================================
+// USER INFO
+// =====================================
+
+window.getUserInfo = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return null;
+
+
+    return {
+
+        uid: user.uid,
+
+        email: user.email,
+
+        verified:
+            user.emailVerified || false
+
+    };
+
+};
+
+
+// =====================================
+// LOGIN STATUS
+// =====================================
+
+window.isLoggedIn = function () {
+
+    return (
+        auth.currentUser !== null ||
+        getLocalDemoUser() !== null
+    );
+
+};
+
+
+// =====================================
+// CURRENT UID
+// =====================================
+
+window.getCurrentUID = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return "";
+
+
+    return user.uid;
+
+};
+
+
+// =====================================
+// CURRENT NAME
+// =====================================
+
+window.getCurrentName = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return "";
+
+
+    return (
+        user.displayName ||
+        user.name ||
+        ""
+    );
+
+};
+
+
+// =====================================
+// CURRENT EMAIL
+// =====================================
+
+window.getCurrentEmail = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return "";
+
+
+    return user.email || "";
+
+};
+
+
+// =====================================
+// LOGIN TIME
+// =====================================
+
+window.getLoginTime = function () {
+
+    return localStorage.getItem(
+        "loginTime"
+    );
+
+};
+
+
+// =====================================
+// WELCOME
+// =====================================
+
+window.showWelcome = function () {
+
+    const user =
+        auth.currentUser ||
+        getLocalDemoUser();
+
+
+    if (!user) return;
+
+
+    console.log(
+        "Welcome:",
+        user.displayName ||
+        user.name ||
+        user.email
+    );
+
+};
+// =====================================
+// REGISTER NEW USER
+// =====================================
 
 window.createNewUser = async function () {
 
@@ -642,7 +749,7 @@ window.createNewUser = async function () {
         nameElement.value.trim();
 
     const email =
-        emailElement.value.trim();
+        emailElement.value.trim().toLowerCase();
 
     const password =
         passwordElement.value;
@@ -650,13 +757,17 @@ window.createNewUser = async function () {
     const role =
         roleElement
             ? roleElement.value
-            : "teacher";
+            : "student";
 
+
+    // ---------------------------------
+    // Validation
+    // ---------------------------------
 
     if (!name || !email || !password) {
 
         alert(
-            "সব তথ্য পূরণ করুন।"
+            "Please fill all required fields."
         );
 
         return;
@@ -666,7 +777,7 @@ window.createNewUser = async function () {
     if (password.length < 6) {
 
         alert(
-            "Password কমপক্ষে 6 characters হতে হবে।"
+            "Password must contain at least 6 characters."
         );
 
         return;
@@ -675,6 +786,10 @@ window.createNewUser = async function () {
 
     try {
 
+        // ---------------------------------
+        // Create Firebase account
+        // ---------------------------------
+
         const credential =
             await createUserWithEmailAndPassword(
                 auth,
@@ -682,9 +797,14 @@ window.createNewUser = async function () {
                 password
             );
 
+
         const user =
             credential.user;
 
+
+        // ---------------------------------
+        // Save display name
+        // ---------------------------------
 
         await updateProfile(
             user,
@@ -694,12 +814,12 @@ window.createNewUser = async function () {
         );
 
 
+        // ---------------------------------
+        // Save role in Firestore
+        // ---------------------------------
+
         await setDoc(
-            doc(
-                db,
-                "users",
-                user.uid
-            ),
+            doc(db, "users", user.uid),
             {
                 role: role,
                 name: name,
@@ -710,23 +830,36 @@ window.createNewUser = async function () {
         );
 
 
+        // ---------------------------------
+        // Save login time
+        // ---------------------------------
+
+        saveLoginTime();
+
+
         alert(
-            "Account তৈরি হয়েছে!\n\n" +
-            "Name: " + name +
-            "\nRole: " + role
+            "Account created successfully!"
         );
 
 
+        // ---------------------------------
+        // Redirect
+        // ---------------------------------
+
         if (role === "student") {
 
-            window.location.href =
-                "student_dashboard.html";
+            window.location.replace(
+                "student_dashboard.html"
+            );
 
         } else {
 
-            window.location.href =
-                "dashboard.html";
+            window.location.replace(
+                "dashboard.html"
+            );
+
         }
+
 
     } catch (error) {
 
@@ -735,349 +868,821 @@ window.createNewUser = async function () {
             error
         );
 
+
         let message =
-            error.message;
+            "Registration failed.";
 
-        if (
-            error.code ===
-            "auth/email-already-in-use"
-        ) {
 
-            message =
-                "এই Email দিয়ে আগে থেকেই account আছে।";
+        switch (error.code) {
+
+            case "auth/email-already-in-use":
+
+                message =
+                    "This email is already registered.";
+
+                break;
+
+
+            case "auth/invalid-email":
+
+                message =
+                    "Please enter a valid email address.";
+
+                break;
+
+
+            case "auth/weak-password":
+
+                message =
+                    "Password is too weak. Use at least 6 characters.";
+
+                break;
+
+
+            case "auth/operation-not-allowed":
+
+                message =
+                    "Email/Password Authentication is disabled in Firebase.";
+
+                break;
+
+
+            case "auth/unauthorized-domain":
+
+                message =
+                    "This website domain is not authorized in Firebase.";
+
+                break;
+
+
+            default:
+
+                message =
+                    error.message ||
+                    "Could not create account.";
         }
 
-        if (
-            error.code ===
-            "auth/invalid-email"
-        ) {
-
-            message =
-                "সঠিক Email Address দিন।";
-        }
-
-        if (
-            error.code ===
-            "auth/weak-password"
-        ) {
-
-            message =
-                "Password আরও শক্তিশালী দিন।";
-        }
-
-        if (
-            error.code ===
-            "auth/operation-not-allowed"
-        ) {
-
-            message =
-                "Firebase Console-এ Email/Password Authentication চালু করুন।";
-        }
 
         alert(
             "Registration Failed:\n\n" +
             message
         );
+
     }
+
 };
 
+
+// Alias
 
 window.registerUser =
     window.createNewUser;
 
 
-// ======================================================
-// USER INFORMATION
-// ======================================================
+// =====================================
+// DEMO LOGIN
+// =====================================
 
-window.getCurrentUser = function () {
+window.demoLogin = async function (
+    role = "admin"
+) {
 
-    return auth.currentUser || null;
-};
+    let email;
+    let name;
 
 
-window.getUserInfo = function () {
+    if (role === "student") {
 
-    const user =
-        auth.currentUser;
+        email = "student@school.com";
+        name = "Demo Student";
 
-    if (!user) {
-        return null;
+    } else if (role === "teacher") {
+
+        email = "teacher@school.com";
+        name = "Demo Teacher";
+
+    } else {
+
+        email = "admin@school.com";
+        name = "Demo Admin";
     }
 
-    return {
 
-        uid: user.uid,
+    const password =
+        "Password123!";
 
-        email: user.email,
 
-        name:
-            user.displayName || "",
+    try {
 
-        verified:
-            user.emailVerified || false
+        // ---------------------------------
+        // Try Firebase login
+        // ---------------------------------
+
+        const credential =
+            await signInWithEmailAndPassword(
+                auth,
+                email,
+                password
+            );
+
+
+        const user =
+            credential.user;
+
+
+        // ---------------------------------
+        // Check/create role document
+        // ---------------------------------
+
+        const userRef =
+            doc(db, "users", user.uid);
+
+        const snapshot =
+            await getDoc(userRef);
+
+
+        if (!snapshot.exists()) {
+
+            await setDoc(
+                userRef,
+                {
+                    role: role,
+                    name: name,
+                    email: email,
+                    createdAt:
+                        new Date().toISOString()
+                }
+            );
+        }
+
+
+        saveLoginTime();
+
+
+        alert(
+            "Demo Login Successful!"
+        );
+
+
+        if (role === "student") {
+
+            window.location.replace(
+                "student_dashboard.html"
+            );
+
+        } else {
+
+            window.location.replace(
+                "dashboard.html"
+            );
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Demo Login Error:",
+            error
+        );
+
+
+        // ---------------------------------
+        // Do NOT create fake admin session
+        // ---------------------------------
+
+        alert(
+            "Demo account is not available.\n\n" +
+            "Please create the demo account in Firebase Authentication first."
+        );
+
+    }
+
+};
+
+
+// =====================================
+// LOGOUT
+// =====================================
+
+window.logout = async function () {
+
+    try {
+
+        localStorage.removeItem(
+            "demoUser"
+        );
+
+        localStorage.removeItem(
+            "loginTime"
+        );
+
+
+        await signOut(auth);
+
+
+        alert(
+            "Logout Successful"
+        );
+
+
+        window.location.replace(
+            "index.html"
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Logout Error:",
+            error
+        );
+
+
+        localStorage.removeItem(
+            "demoUser"
+        );
+
+
+        window.location.replace(
+            "index.html"
+        );
+
+    }
+
+};
+
+
+// =====================================
+// PASSWORD RESET
+// =====================================
+
+window.resetPassword = async function () {
+
+    const emailElement =
+        document.getElementById("email");
+
+
+    if (!emailElement) {
+
+        alert(
+            "Email field not found."
+        );
+
+        return;
+    }
+
+
+    const email =
+        emailElement.value.trim();
+
+
+    if (!email) {
+
+        alert(
+            "Please enter your email address first."
+        );
+
+        emailElement.focus();
+
+        return;
+    }
+
+
+    try {
+
+        await sendPasswordResetEmail(
+            auth,
+            email
+        );
+
+
+        alert(
+            "Password reset email sent successfully.\n\n" +
+            "Please check your email inbox."
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Password Reset Error:",
+            error
+        );
+
+
+        let message =
+            error.message;
+
+
+        if (
+            error.code ===
+            "auth/user-not-found"
+        ) {
+
+            message =
+                "No account was found with this email.";
+
+        } else if (
+            error.code ===
+            "auth/invalid-email"
+        ) {
+
+            message =
+                "Please enter a valid email address.";
+
+        } else if (
+            error.code ===
+            "auth/too-many-requests"
+        ) {
+
+            message =
+                "Too many requests. Please try again later.";
+
+        }
+
+
+        alert(
+            "Password Reset Failed:\n\n" +
+            message
+        );
+
+    }
+
+};
+
+
+// =====================================
+// EMAIL VERIFICATION
+// =====================================
+
+window.verifyEmail = async function () {
+
+    try {
+
+        const user =
+            await waitForAuth();
+
+
+        if (!user) {
+
+            alert(
+                "Please login first."
+            );
+
+            return;
+        }
+
+
+        await sendEmailVerification(
+            user
+        );
+
+
+        alert(
+            "Verification email sent successfully."
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Email Verification Error:",
+            error
+        );
+
+
+        alert(
+            "Verification failed:\n\n" +
+            (error.message || "Unknown error")
+        );
+
+    }
+
+};
+
+
+// =====================================
+// PASSWORD VISIBILITY
+// =====================================
+
+window.togglePasswordVisibility =
+    function (
+        inputId,
+        button
+    ) {
+
+        const input =
+            document.getElementById(inputId);
+
+
+        if (!input) return;
+
+
+        if (
+            input.type === "password"
+        ) {
+
+            input.type = "text";
+
+
+            if (button) {
+
+                button.innerHTML =
+                    '<i class="bi bi-eye-slash"></i>';
+            }
+
+        } else {
+
+            input.type = "password";
+
+
+            if (button) {
+
+                button.innerHTML =
+                    '<i class="bi bi-eye"></i>';
+            }
+
+        }
+
     };
-};
 
 
-window.getUserName = function () {
-
-    const user =
-        auth.currentUser;
-
-    return user
-        ? user.displayName || ""
-        : "";
-};
-
-
-window.getUserEmail = function () {
-
-    const user =
-        auth.currentUser;
-
-    return user
-        ? user.email || ""
-        : "";
-};
-
-
-window.getCurrentUID = function () {
-
-    const user =
-        auth.currentUser;
-
-    return user
-        ? user.uid
-        : "";
-};
-
-
-window.getCurrentEmail = function () {
-
-    const user =
-        auth.currentUser;
-
-    return user
-        ? user.email
-        : "";
-};
-
-
-window.getCurrentName = function () {
-
-    const user =
-        auth.currentUser;
-
-    return user
-        ? user.displayName || ""
-        : "";
-};
-
-
-// ======================================================
-// ROLE CHECKS
-// ======================================================
+// =====================================
+// PERMISSION HELPERS
+// =====================================
 
 window.isAdmin = async function () {
 
-    return (
-        await window.getUserRole()
-    ) === "admin";
+    const role =
+        await getUserRole();
+
+    return role === "admin";
+
 };
 
 
 window.isTeacher = async function () {
 
-    return (
-        await window.getUserRole()
-    ) === "teacher";
+    const role =
+        await getUserRole();
+
+    return role === "teacher";
+
 };
 
 
 window.isStudent = async function () {
 
+    const role =
+        await getUserRole();
+
+    return role === "student";
+
+};
+
+
+window.hasPermission =
+    async function (roleName) {
+
+        const role =
+            await getUserRole();
+
+        return role === roleName;
+
+    };
+// =====================================
+// SCHOOL MANAGEMENT SYSTEM V6.1
+// STABLE AUTH.JS - PART 3
+// AUTH GUARD
+// =====================================
+
+
+// =====================================
+// GET CURRENT PAGE
+// =====================================
+
+function getCurrentPage() {
+
     return (
-        await window.getUserRole()
-    ) === "student";
-};
-
-
-window.hasPermission = async function (
-    roleName
-) {
-
-    return (
-        await window.getUserRole()
-    ) === roleName;
-};
-
-
-// ======================================================
-// SESSION
-// ======================================================
-
-window.saveLoginTime = function () {
-
-    localStorage.setItem(
-        "loginTime",
-        new Date().toISOString()
+        window.location.pathname
+            .split("/")
+            .pop()
+            .toLowerCase()
+        || "index.html"
     );
-};
+
+}
 
 
-window.getLoginTime = function () {
+// =====================================
+// PUBLIC PAGES
+// =====================================
 
-    return localStorage.getItem(
-        "loginTime"
-    );
-};
-
-
-window.isLoggedIn = function () {
-
-    return auth.currentUser !== null;
-};
+const PUBLIC_PAGES = [
+    "",
+    "index.html",
+    "login.html"
+];
 
 
-// ======================================================
-// PAGE ACCESS CONTROL
-// ======================================================
+// =====================================
+// STUDENT PAGES
+// =====================================
 
-async function handlePageAccess(user) {
+const STUDENT_PAGES = [
+    "student_dashboard.html"
+];
 
-    const currentPage =
-        getCurrentPage();
+
+// =====================================
+// AUTH GUARD
+// =====================================
+
+async function runAuthGuard() {
+
+    try {
+
+        // ---------------------------------
+        // Wait until Firebase finishes
+        // restoring login session
+        // ---------------------------------
+
+        const firebaseUser =
+            await waitForAuth();
 
 
-    // -------------------------------
-    // Public pages
-    // -------------------------------
+        // ---------------------------------
+        // Check local demo session
+        // ---------------------------------
 
-    if (
-        PUBLIC_PAGES.includes(
-            currentPage
-        )
-    ) {
+        const demoUser =
+            getLocalDemoUser();
 
-        if (user) {
+
+        const activeUser =
+            firebaseUser || demoUser;
+
+
+        const currentPage =
+            getCurrentPage();
+
+
+        console.log(
+            "AUTH GUARD:",
+            currentPage,
+            activeUser
+                ? activeUser.email
+                : "NOT LOGGED IN"
+        );
+
+
+        // =================================
+        // PUBLIC PAGE
+        // =================================
+
+        if (
+            PUBLIC_PAGES.includes(
+                currentPage
+            )
+        ) {
+
+            // ---------------------------------
+            // Login page without user
+            // ---------------------------------
+
+            if (!activeUser) {
+
+                return;
+            }
+
+
+            // ---------------------------------
+            // Already logged in
+            // ---------------------------------
 
             const role =
-                await window.getUserRole();
+                await getUserRole();
+
 
             if (role === "student") {
 
-                if (
-                    currentPage ===
-                    "login.html"
-                ) {
-
-                    window.location.href =
-                        "student_dashboard.html";
-                }
+                window.location.replace(
+                    "student_dashboard.html"
+                );
 
             } else if (
-                currentPage ===
-                "login.html"
+                role === "admin" ||
+                role === "teacher"
             ) {
 
-                window.location.href =
-                    "dashboard.html";
+                window.location.replace(
+                    "dashboard.html"
+                );
             }
+
+
+            return;
         }
 
-        return;
-    }
 
+        // =================================
+        // PROTECTED PAGE
+        // =================================
 
-    // -------------------------------
-    // Protected pages
-    // -------------------------------
+        if (!activeUser) {
 
-    if (!user) {
-
-        window.location.href =
-            "index.html";
-
-        return;
-    }
-
-
-    window.saveLoginTime();
-
-
-    const role =
-        await window.getUserRole();
-
-
-    // -------------------------------
-    // No role
-    // -------------------------------
-
-    if (!role) {
-
-        alert(
-            "আপনার account-এর role পাওয়া যায়নি।\n\n" +
-            "Firestore users/" +
-            user.uid +
-            " document পরীক্ষা করুন।"
-        );
-
-        await signOut(auth);
-
-        window.location.href =
-            "login.html";
-
-        return;
-    }
-
-
-    // -------------------------------
-    // Student page
-    // -------------------------------
-
-    if (
-        STUDENT_PAGES.includes(
-            currentPage
-        )
-    ) {
-
-        if (
-            role !== "student" &&
-            role !== "admin"
-        ) {
-
-            window.location.href =
-                "dashboard.html";
-        }
-
-        return;
-    }
-
-
-    // -------------------------------
-    // Admin-only page
-    // -------------------------------
-
-    if (
-        ADMIN_ONLY_PAGES.includes(
-            currentPage
-        )
-    ) {
-
-        if (role !== "admin") {
-
-            alert(
-                "Access Denied\n\n" +
-                "এই page শুধুমাত্র Admin ব্যবহার করতে পারবেন।"
+            console.log(
+                "No authenticated user."
             );
 
-            window.location.href =
-                "dashboard.html";
+
+            window.location.replace(
+                "login.html"
+            );
+
+
+            return;
         }
 
-        return;
+
+        // =================================
+        // GET ROLE
+        // =================================
+
+        const role =
+            await getUserRole();
+
+
+        console.log(
+            "CURRENT USER ROLE:",
+            role
+        );
+
+
+        // =================================
+        // ROLE NOT FOUND
+        // =================================
+
+        if (!role) {
+
+            alert(
+                "Your account is logged in, " +
+                "but no role is assigned.\n\n" +
+                "Please contact the administrator."
+            );
+
+
+            await signOut(auth)
+                .catch(() => {});
+
+
+            localStorage.removeItem(
+                "demoUser"
+            );
+
+
+            window.location.replace(
+                "login.html"
+            );
+
+
+            return;
+        }
+
+
+        // =================================
+        // STUDENT PAGE
+        // =================================
+
+        if (
+            STUDENT_PAGES.includes(
+                currentPage
+            )
+        ) {
+
+            if (
+                role !== "student" &&
+                role !== "admin"
+            ) {
+
+                alert(
+                    "Access Denied.\n\n" +
+                    "Student access is required."
+                );
+
+
+                window.location.replace(
+                    "dashboard.html"
+                );
+
+
+                return;
+            }
+
+
+            return;
+        }
+
+
+        // =================================
+        // ADMIN ONLY PAGE
+        // =================================
+
+        if (
+            ADMIN_ONLY_PAGES.includes(
+                currentPage
+            )
+        ) {
+
+            if (role !== "admin") {
+
+                alert(
+                    "Access Denied.\n\n" +
+                    "Administrator access is required."
+                );
+
+
+                window.location.replace(
+                    "dashboard.html"
+                );
+
+
+                return;
+            }
+
+
+            return;
+        }
+
+
+        // =================================
+        // OTHER PROTECTED PAGES
+        // =================================
+
+        // Admin and teacher can access
+        // normal management pages.
+
+        if (
+            role === "admin" ||
+            role === "teacher"
+        ) {
+
+            return;
+        }
+
+
+        // =================================
+        // UNKNOWN ROLE
+        // =================================
+
+        alert(
+            "You do not have permission " +
+            "to access this page."
+        );
+
+
+        window.location.replace(
+            "dashboard.html"
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "AUTH GUARD ERROR:",
+            error
+        );
+
+
+        // Do not create a redirect loop.
+
+        if (
+            getCurrentPage() !==
+            "login.html"
+        ) {
+
+            window.location.replace(
+                "login.html"
+            );
+        }
+
     }
 
+}
 
-    // ------------------
+
+// =====================================
+// RUN AUTH GUARD
+// =====================================
+
+runAuthGuard();
+
+
+// =====================================
+// END OF STABLE AUTH.JS
+// =====================================
+
+console.log(
+    "School Management System V6.1 Stable Auth Loaded"
+);
