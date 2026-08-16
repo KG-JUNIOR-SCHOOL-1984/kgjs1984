@@ -196,10 +196,9 @@ window.login = async function () {
         } else if (error.code === "auth/operation-not-allowed") {
             errorMsg = "Firebase Email/Password Auth provider is disabled in Firebase Console. Using Demo Quick Login buttons below is recommended.";
         }
-        alert(
-    "Login Failed\n\n" +
-    "Error Code: " + (error.code || "unknown") + "\n\n" +
-    "Message: " + (error.message || errorMsg)
+        alert("Login Failed: " + errorMsg);
+       
+) 
 );
 
 // =====================================
