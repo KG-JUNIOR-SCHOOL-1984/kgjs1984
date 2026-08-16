@@ -1,8 +1,8 @@
-// =====================================
-// School Management System V6
+// ======================================================
+// Gobindaganj KG & Junior School
+// School Management System V6.1 Stable
 // Firebase Authentication
-// auth.js
-// =====================================
+// ======================================================
 
 import { auth, db } from "./firebase.js";
 
@@ -25,60 +25,15 @@ import {
     setDoc
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// Helper to get local demo user when Firebase auth encounters network errors
-function getLocalDemoUser() {
-    try {
-        const str = localStorage.getItem("demoUser");
-        if (str) return JSON.parse(str);
-    } catch (e) {}
-    return null;
-}
 
-// =====================================
-// Wait For Firebase Auth To Finish Restoring The Session
-// =====================================
-// On a fresh page load, Firebase Auth needs a moment to restore a
-// persisted session (localStorage/IndexedDB) before `auth.currentUser`
-// is reliable. Checking `auth.currentUser` synchronously right after
-// page load can read it as null even for an already-logged-in user,
-// which caused intermittent false "Access Denied" redirects. Every
-// role check should await this first.
-let _authReadyResolve;
-const _authReadyPromise = new Promise((resolve) => {
-    _authReadyResolve = resolve;
-});
-let _authReadyDone = false;
+// ======================================================
+// CONFIGURATION
+// ======================================================
 
-onAuthStateChanged(auth, (user) => {
-    if (!_authReadyDone) {
-        _authReadyDone = true;
-        _authReadyResolve(user);
-    }
-});
-
-async function waitForAuthReady() {
-    if (_authReadyDone) return auth.currentUser;
-    return _authReadyPromise;
-}
-
-// =====================================
-// Bootstrap Admin Auto-Provisioning
-// =====================================
-// These emails automatically get an "admin" role document created in
-// Firestore (users/{uid}) the first time they successfully log in via
-// Firebase Auth, so the school doesn't need to manually create the
-// Firestore role document for its first admin account(s).
-// Add more emails here (lowercase) if additional owners need this.
 const BOOTSTRAP_ADMIN_EMAILS = [
     "kgjs1984@gmail.com"
 ];
 
-// =====================================
-// Admin-Only Pages
-// =====================================
-// Teachers can log in and share the main dashboard + general
-// management pages with admin, but these pages stay admin-only
-// (staff records, salary, accounts, settings, fees, reports).
 const ADMIN_ONLY_PAGES = [
     "teachers.html",
     "teachers_list.html",
@@ -94,605 +49,1035 @@ const ADMIN_ONLY_PAGES = [
     "reports.html"
 ];
 
-async function ensureUserRoleDoc(user) {
-    if (!user || !user.uid) return;
+const STUDENT_PAGES = [
+    "student_dashboard.html"
+];
 
-    try {
-        const ref = doc(db, "users", user.uid);
-        const snap = await getDoc(ref);
+const PUBLIC_PAGES = [
+    "",
+    "index.html",
+    "login.html"
+];
 
-        if (!snap.exists()) {
-            const email = (user.email || "").toLowerCase();
 
-            if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) {
-                await setDoc(ref, {
-                    role: "admin",
-                    name: user.displayName || (email.split("@")[0] || "Admin"),
-                    email: user.email,
-                    createdAt: new Date().toISOString()
-                });
-                console.log("Bootstrap admin role created for:", email);
-            }
-        }
-    } catch (error) {
-        console.error("ensureUserRoleDoc error:", error);
-        // Surfaced as an alert (not just console.error) because on mobile
-        // browsers there's no easy way to open devtools to see console
-        // errors. This is temporary debugging help — safe to remove later.
-        alert("Role setup error: " + (error.code || "") + " " + error.message);
+// ======================================================
+// AUTH READY
+// ======================================================
+
+let authReady = false;
+let authReadyUser = null;
+
+let resolveAuthReady;
+
+const authReadyPromise = new Promise((resolve) => {
+    resolveAuthReady = resolve;
+});
+
+
+// ======================================================
+// AUTH STATE LISTENER
+// ======================================================
+
+onAuthStateChanged(auth, async (user) => {
+
+    if (!authReady) {
+        authReady = true;
+        authReadyUser = user;
+        resolveAuthReady(user);
     }
+
+    console.log(
+        "Firebase Auth State:",
+        user ? user.email : "No user"
+    );
+
+    if (user) {
+        try {
+            await ensureUserRoleDoc(user);
+        } catch (error) {
+            console.error("Role initialization error:", error);
+        }
+    }
+
+    await handlePageAccess(user);
+});
+
+
+// ======================================================
+// WAIT FOR AUTH
+// ======================================================
+
+async function waitForAuthReady() {
+
+    if (authReady) {
+        return authReadyUser;
+    }
+
+    return await authReadyPromise;
 }
 
-// =====================================
-// Login Handler
-// =====================================
 
-window.login = async function () {
-    const emailElem = document.getElementById("email");
-    const passwordElem = document.getElementById("password");
+// ======================================================
+// GET CURRENT PAGE
+// ======================================================
 
-    if (!emailElem || !passwordElem) return;
+function getCurrentPage() {
 
-    const email = emailElem.value.trim();
-    const password = passwordElem.value;
+    return (
+        window.location.pathname
+            .split("/")
+            .pop()
+            .toLowerCase()
+        || "index.html"
+    );
+}
 
-    if (email === "" || password === "") {
-        alert("Please enter both Email and Password.");
+
+// ======================================================
+// CREATE ADMIN ROLE DOCUMENT
+// ======================================================
+
+async function ensureUserRoleDoc(user) {
+
+    if (!user || !user.uid) {
         return;
     }
 
-    const rememberMe = document.getElementById("rememberMe")?.checked;
+    const userRef = doc(db, "users", user.uid);
 
     try {
-        try {
-            if (rememberMe) {
-                await setPersistence(auth, browserLocalPersistence);
-            } else {
-                await setPersistence(auth, browserSessionPersistence);
-            }
 
-            await signInWithEmailAndPassword(auth, email, password);
-        } catch (authErr) {
-            // NOTE: Previously this fell back to creating a local "demo"
-            // session for ANY email/password whenever Firebase Auth
-            // rejected the sign-in (e.g. provider disabled). That meant
-            // literally anyone could type any credentials and be logged
-            // in — usually as admin. That bypass has been removed:
-            // every login now requires real Firebase Authentication.
-            throw authErr;
-        }
+        const snapshot = await getDoc(userRef);
 
-        // Auto-create the Firestore role doc for bootstrap admin
-        // emails on their first successful login (see BOOTSTRAP_ADMIN_EMAILS).
-        await ensureUserRoleDoc(auth.currentUser);
-
-        alert("Login Successful!");
-
-        // Route based on role: students go to their own portal,
-        // admin/teacher go to the main dashboard.
-        const role = await window.getUserRole();
-
-        if (role === "student") {
-            window.location.href = "student_dashboard.html";
-        } else {
-            window.location.href = "dashboard.html";
-        }
-
-    } catch (error) {
-        console.error("Login Error:", error);
-        let errorMsg = error.message;
-        if (
-            error.code === "auth/invalid-credential" ||
-            error.code === "auth/user-not-found" ||
-            error.code === "auth/wrong-password"
-        ) {
-            errorMsg = "Invalid email or password. If you don't have an account yet, click 'Register / Create Account' or 'Demo Quick Login'.";
-        } else if (error.code === "auth/invalid-email") {
-            errorMsg = "Please enter a valid email address.";
-        } else if (error.code === "auth/too-many-requests") {
-            errorMsg = "Access disabled temporarily due to too many failed login attempts. Try again later.";
-        } else if (error.code === "auth/network-request-failed") {
-            errorMsg = "Network request failed. Please check internet connection or use Quick Demo Login.";
-        } else if (error.code === "auth/operation-not-allowed") {
-            errorMsg = "Firebase Email/Password Auth provider is disabled in Firebase Console. Using Demo Quick Login buttons below is recommended.";
-        }
-                alert("Login Failed: " + errorMsg);
-    }
-};
-
-// =====================================
-// Quick Demo Login (for preview testing)
-// =====================================
-
-window.demoLogin = async function (role = "admin") {
-    const demoEmail = role === "student" ? "student@school.com" : role === "teacher" ? "teacher@school.com" : "admin@school.com";
-    const demoPassword = "Password123!";
-    const demoName = role === "student" ? "Demo Student" : role === "teacher" ? "Demo Teacher" : "Demo Admin";
-
-    const setDemoSession = () => {
-        localStorage.setItem("demoUser", JSON.stringify({
-            uid: "demo-" + role,
-            email: demoEmail,
-            displayName: demoName,
-            name: demoName,
-            role: role
-        }));
-    };
-
-    try {
-        await signInWithEmailAndPassword(auth, demoEmail, demoPassword);
-        localStorage.removeItem("demoUser");
-        alert(`Demo Login Successful as ${demoName}!`);
-        window.location.href = role === "student" ? "student_dashboard.html" : "dashboard.html";
-    } catch (err) {
-        if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
-            // Auto-create demo user if missing in Firebase Auth
-            try {
-                const credential = await createUserWithEmailAndPassword(auth, demoEmail, demoPassword);
-                await updateProfile(credential.user, { displayName: demoName });
-                await setDoc(doc(db, "users", credential.user.uid), {
-                    role: role,
-                    name: demoName,
-                    email: demoEmail,
-                    createdAt: new Date().toISOString()
-                });
-                localStorage.removeItem("demoUser");
-                alert(`Demo account created and logged in as ${demoName}!`);
-                window.location.href = role === "student" ? "student_dashboard.html" : "dashboard.html";
-            } catch (createErr) {
-                console.warn("Demo user creation failed in Firebase Auth, using demo session:", createErr);
-                setDemoSession();
-                alert(`Logged in as ${demoName}!`);
-                window.location.href = role === "student" ? "student_dashboard.html" : "dashboard.html";
-            }
-        } else {
-            console.warn("Demo login failed in Firebase Auth, using demo session:", err);
-            setDemoSession();
-            alert(`Logged in as ${demoName}!`);
-            window.location.href = role === "student" ? "student_dashboard.html" : "dashboard.html";
-        }
-    }
-};
-
-// =====================================
-// Logout Handler
-// =====================================
-
-window.logout = async function () {
-    try {
-        localStorage.removeItem("demoUser");
-        await signOut(auth).catch(() => {});
-        alert("Logout Successful");
-        window.location.href = "index.html";
-    } catch (error) {
-        console.error("Logout Error:", error);
-        localStorage.removeItem("demoUser");
-        window.location.href = "index.html";
-    }
-};
-
-// =====================================
-// Password Reset Handler
-// =====================================
-
-window.resetPassword = async function () {
-    const emailElem = document.getElementById("email");
-    if (!emailElem) return;
-
-    const email = emailElem.value.trim();
-
-    if (email === "") {
-        alert("Please enter your email address in the Email field.");
-        emailElem.focus();
-        return;
-    }
-
-    try {
-        await sendPasswordResetEmail(auth, email);
-        alert("Password reset email sent successfully! Please check your inbox.");
-    } catch (error) {
-        console.error("Password Reset Error:", error);
-        let msg = error.message;
-        if (error.code === "auth/user-not-found") {
-            msg = "No account found with this email address.";
-        } else if (error.code === "auth/invalid-email") {
-            msg = "Please enter a valid email address.";
-        } else if (error.code === "auth/operation-not-allowed") {
-            msg = "Firebase Password Reset is not enabled in Firebase Console. You can use Quick Demo Login or create a new local account.";
-        }
-        alert("Reset Failed: " + msg);
-    }
-};
-
-// =====================================
-// Email Verification
-// =====================================
-
-window.verifyEmail = async function () {
-    try {
-        if (!auth.currentUser) {
-            alert("Please login first.");
+        if (snapshot.exists()) {
             return;
         }
 
-        await sendEmailVerification(auth.currentUser);
-        alert("Verification email sent.");
+        const email = (user.email || "").toLowerCase();
+
+        if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) {
+
+            await setDoc(userRef, {
+
+                role: "admin",
+
+                name:
+                    user.displayName ||
+                    email.split("@")[0] ||
+                    "Admin",
+
+                email: user.email,
+
+                createdAt: new Date().toISOString()
+
+            });
+
+            console.log(
+                "Admin role created:",
+                email
+            );
+        }
+
     } catch (error) {
-        console.error("Verify Email Error:", error);
-        alert(error.message);
+
+        console.error(
+            "ensureUserRoleDoc:",
+            error
+        );
+
+        // Don't block login because of a role-document error.
+    }
+}
+
+
+// ======================================================
+// GET USER ROLE
+// ======================================================
+
+window.getUserRole = async function () {
+
+    const user = await waitForAuthReady();
+
+    if (!user) {
+        return null;
+    }
+
+    try {
+
+        const userRef = doc(
+            db,
+            "users",
+            user.uid
+        );
+
+        const snapshot = await getDoc(userRef);
+
+        if (!snapshot.exists()) {
+
+            console.warn(
+                "No role document found for:",
+                user.email
+            );
+
+            return null;
+        }
+
+        const data = snapshot.data();
+
+        return data.role || null;
+
+    } catch (error) {
+
+        console.error(
+            "getUserRole error:",
+            error
+        );
+
+        return null;
     }
 };
 
-// =====================================
-// Create New User / Register User
-// =====================================
 
-window.createNewUser = async function () {
-    const nameElem = document.getElementById("fullName") || document.getElementById("regName");
-    const emailElem = document.getElementById("newEmail") || document.getElementById("regEmail");
-    const passwordElem = document.getElementById("newPassword") || document.getElementById("regPassword");
-    const roleElem = document.getElementById("newRole") || document.getElementById("regRole");
+// ======================================================
+// LOGIN
+// ======================================================
 
-    if (!nameElem || !emailElem || !passwordElem) return;
+window.login = async function () {
 
-    const name = nameElem.value.trim();
-    const email = emailElem.value.trim();
-    const password = passwordElem.value;
-    const role = roleElem ? roleElem.value : "admin";
+    const emailElement =
+        document.getElementById("email");
 
-    if (name === "" || email === "" || password === "") {
-        alert("Please fill all required fields.");
+    const passwordElement =
+        document.getElementById("password");
+
+    if (!emailElement || !passwordElement) {
+
+        alert(
+            "Login form not found. Please reload the page."
+        );
+
         return;
     }
 
-    if (password.length < 6) {
-        alert("Password must be at least 6 characters long.");
+    const email =
+        emailElement.value.trim();
+
+    const password =
+        passwordElement.value;
+
+    if (!email || !password) {
+
+        alert(
+            "Please enter Email and Password."
+        );
+
         return;
     }
 
-    let uid = "user-" + Date.now();
-    let authCreated = false;
+    const loginButton =
+        document.querySelector(
+            '#loginForm button[type="submit"]'
+        );
 
     try {
-        try {
-            const userCredential = await createUserWithEmailAndPassword(
+
+        if (loginButton) {
+            loginButton.disabled = true;
+            loginButton.innerHTML =
+                "⏳ Logging in...";
+        }
+
+        const remember =
+            document.getElementById("rememberMe")?.checked;
+
+        if (remember) {
+
+            await setPersistence(
+                auth,
+                browserLocalPersistence
+            );
+
+        } else {
+
+            await setPersistence(
+                auth,
+                browserSessionPersistence
+            );
+        }
+
+
+        // Firebase Email/Password Login
+        const credential =
+            await signInWithEmailAndPassword(
                 auth,
                 email,
                 password
             );
-            uid = userCredential.user.uid;
-            authCreated = true;
 
-            await updateProfile(userCredential.user, {
-                displayName: name
-            });
-        } catch (authErr) {
-            if (authErr.code === "auth/operation-not-allowed" || authErr.code === "auth/unauthorized-domain") {
-                console.warn("Firebase Email/Password Auth is disabled in Firebase Console. Registering locally and in Firestore.", authErr);
-                localStorage.setItem("demoUser", JSON.stringify({
-                    uid: uid,
-                    email: email,
-                    displayName: name,
-                    name: name,
-                    role: role
-                }));
-            } else {
-                throw authErr;
-            }
+        const user =
+            credential.user;
+
+        console.log(
+            "Login successful:",
+            user.email
+        );
+
+
+        // Make sure admin role exists
+        await ensureUserRoleDoc(user);
+
+
+        const role =
+            await window.getUserRole();
+
+
+        if (!role) {
+
+            alert(
+                "Login successful, but no user role was found.\n\n" +
+                "Please create the user's role in Firestore."
+            );
+
+            await signOut(auth);
+
+            return;
         }
 
-        try {
-            await setDoc(doc(db, "users", uid), {
+
+        alert(
+            "Login Successful!\nRole: " + role
+        );
+
+
+        // Redirect
+        if (role === "student") {
+
+            window.location.href =
+                "student_dashboard.html";
+
+        } else {
+
+            window.location.href =
+                "dashboard.html";
+        }
+
+    } catch (error) {
+
+        console.error(
+            "LOGIN ERROR:",
+            error
+        );
+
+        showAuthError(error);
+
+    } finally {
+
+        if (loginButton) {
+
+            loginButton.disabled = false;
+
+            loginButton.innerHTML =
+                "🔐 Login";
+        }
+    }
+};
+
+
+// ======================================================
+// AUTH ERROR MESSAGE
+// ======================================================
+
+function showAuthError(error) {
+
+    let message =
+        "Login failed.";
+
+    switch (error.code) {
+
+        case "auth/invalid-credential":
+            message =
+                "Email অথবা Password ভুল।";
+            break;
+
+        case "auth/user-not-found":
+            message =
+                "এই Email দিয়ে কোনো account পাওয়া যায়নি।";
+            break;
+
+        case "auth/wrong-password":
+            message =
+                "Password ভুল।";
+            break;
+
+        case "auth/invalid-email":
+            message =
+                "সঠিক Email Address দিন।";
+            break;
+
+        case "auth/too-many-requests":
+            message =
+                "অনেকবার ভুল login হয়েছে। কিছুক্ষণ পরে চেষ্টা করুন।";
+            break;
+
+        case "auth/network-request-failed":
+            message =
+                "Internet connection অথবা Firebase connection সমস্যা হয়েছে।";
+            break;
+
+        case "auth/operation-not-allowed":
+            message =
+                "Firebase Console-এ Email/Password Authentication চালু নেই।";
+            break;
+
+        case "auth/unauthorized-domain":
+            message =
+                "এই website domain Firebase Authentication-এ Authorized নয়।";
+            break;
+
+        case "auth/user-disabled":
+            message =
+                "এই accountটি Firebase থেকে disabled করা হয়েছে।";
+            break;
+
+        default:
+            message =
+                error.message ||
+                "Unknown authentication error.";
+    }
+
+    alert(
+        "Login Failed:\n\n" +
+        message +
+        "\n\nError code: " +
+        (error.code || "unknown")
+    );
+}
+
+
+// ======================================================
+// LOGOUT
+// ======================================================
+
+window.logout = async function () {
+
+    try {
+
+        await signOut(auth);
+
+        localStorage.removeItem("loginTime");
+
+        alert(
+            "Logout Successful"
+        );
+
+        window.location.href =
+            "index.html";
+
+    } catch (error) {
+
+        console.error(
+            "Logout Error:",
+            error
+        );
+
+        window.location.href =
+            "index.html";
+    }
+};
+
+
+// ======================================================
+// PASSWORD RESET
+// ======================================================
+
+window.resetPassword = async function () {
+
+    const emailElement =
+        document.getElementById("email");
+
+    if (!emailElement) {
+        return;
+    }
+
+    const email =
+        emailElement.value.trim();
+
+    if (!email) {
+
+        alert(
+            "প্রথমে Email Address লিখুন।"
+        );
+
+        emailElement.focus();
+
+        return;
+    }
+
+    try {
+
+        await sendPasswordResetEmail(
+            auth,
+            email
+        );
+
+        alert(
+            "Password reset email পাঠানো হয়েছে।\n" +
+            "আপনার Email Inbox চেক করুন।"
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Password Reset Error:",
+            error
+        );
+
+        let message =
+            error.message;
+
+        if (
+            error.code ===
+            "auth/user-not-found"
+        ) {
+
+            message =
+                "এই Email দিয়ে কোনো account পাওয়া যায়নি।";
+        }
+
+        if (
+            error.code ===
+            "auth/invalid-email"
+        ) {
+
+            message =
+                "সঠিক Email Address দিন।";
+        }
+
+        alert(
+            "Password Reset Failed:\n\n" +
+            message
+        );
+    }
+};
+
+
+// ======================================================
+// EMAIL VERIFICATION
+// ======================================================
+
+window.verifyEmail = async function () {
+
+    const user =
+        await waitForAuthReady();
+
+    if (!user) {
+
+        alert(
+            "প্রথমে Login করুন।"
+        );
+
+        return;
+    }
+
+    try {
+
+        await sendEmailVerification(user);
+
+        alert(
+            "Verification email পাঠানো হয়েছে।"
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Verification Error:",
+            error
+        );
+
+        alert(
+            error.message
+        );
+    }
+};
+
+
+// ======================================================
+// REGISTER USER
+// ======================================================
+
+window.createNewUser = async function () {
+
+    const nameElement =
+        document.getElementById("fullName") ||
+        document.getElementById("regName");
+
+    const emailElement =
+        document.getElementById("newEmail") ||
+        document.getElementById("regEmail");
+
+    const passwordElement =
+        document.getElementById("newPassword") ||
+        document.getElementById("regPassword");
+
+    const roleElement =
+        document.getElementById("newRole") ||
+        document.getElementById("regRole");
+
+
+    if (
+        !nameElement ||
+        !emailElement ||
+        !passwordElement
+    ) {
+
+        alert(
+            "Registration form not found."
+        );
+
+        return;
+    }
+
+
+    const name =
+        nameElement.value.trim();
+
+    const email =
+        emailElement.value.trim();
+
+    const password =
+        passwordElement.value;
+
+    const role =
+        roleElement
+            ? roleElement.value
+            : "teacher";
+
+
+    if (!name || !email || !password) {
+
+        alert(
+            "সব তথ্য পূরণ করুন।"
+        );
+
+        return;
+    }
+
+
+    if (password.length < 6) {
+
+        alert(
+            "Password কমপক্ষে 6 characters হতে হবে।"
+        );
+
+        return;
+    }
+
+
+    try {
+
+        const credential =
+            await createUserWithEmailAndPassword(
+                auth,
+                email,
+                password
+            );
+
+        const user =
+            credential.user;
+
+
+        await updateProfile(
+            user,
+            {
+                displayName: name
+            }
+        );
+
+
+        await setDoc(
+            doc(
+                db,
+                "users",
+                user.uid
+            ),
+            {
                 role: role,
                 name: name,
                 email: email,
-                createdAt: new Date().toISOString()
-            });
-        } catch (dbErr) {
-            console.warn("Firestore save user record failed:", dbErr);
-        }
+                createdAt:
+                    new Date().toISOString()
+            }
+        );
 
-        if (!authCreated) {
-            localStorage.setItem("demoUser", JSON.stringify({
-                uid: uid,
-                email: email,
-                displayName: name,
-                name: name,
-                role: role
-            }));
-        }
 
-        alert(`Account created successfully for ${name} (${role})! Logging in...`);
+        alert(
+            "Account তৈরি হয়েছে!\n\n" +
+            "Name: " + name +
+            "\nRole: " + role
+        );
+
 
         if (role === "student") {
-            window.location.href = "student_dashboard.html";
+
+            window.location.href =
+                "student_dashboard.html";
+
         } else {
-            window.location.href = "dashboard.html";
+
+            window.location.href =
+                "dashboard.html";
         }
+
     } catch (error) {
-        console.error("Create User Error:", error);
-        alert("Registration Error: " + error.message);
+
+        console.error(
+            "Registration Error:",
+            error
+        );
+
+        let message =
+            error.message;
+
+        if (
+            error.code ===
+            "auth/email-already-in-use"
+        ) {
+
+            message =
+                "এই Email দিয়ে আগে থেকেই account আছে।";
+        }
+
+        if (
+            error.code ===
+            "auth/invalid-email"
+        ) {
+
+            message =
+                "সঠিক Email Address দিন।";
+        }
+
+        if (
+            error.code ===
+            "auth/weak-password"
+        ) {
+
+            message =
+                "Password আরও শক্তিশালী দিন।";
+        }
+
+        if (
+            error.code ===
+            "auth/operation-not-allowed"
+        ) {
+
+            message =
+                "Firebase Console-এ Email/Password Authentication চালু করুন।";
+        }
+
+        alert(
+            "Registration Failed:\n\n" +
+            message
+        );
     }
 };
 
-window.registerUser = window.createNewUser;
 
-// =====================================
-// User Info & Session Helpers
-// =====================================
+window.registerUser =
+    window.createNewUser;
+
+
+// ======================================================
+// USER INFORMATION
+// ======================================================
 
 window.getCurrentUser = function () {
-    return auth.currentUser || getLocalDemoUser();
+
+    return auth.currentUser || null;
 };
 
+
 window.getUserInfo = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return null;
+
+    const user =
+        auth.currentUser;
+
+    if (!user) {
+        return null;
+    }
 
     return {
+
         uid: user.uid,
+
         email: user.email,
-        verified: user.emailVerified || false
+
+        name:
+            user.displayName || "",
+
+        verified:
+            user.emailVerified || false
     };
 };
 
+
 window.getUserName = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return "";
-    return user.displayName || user.name || "";
+
+    const user =
+        auth.currentUser;
+
+    return user
+        ? user.displayName || ""
+        : "";
 };
+
 
 window.getUserEmail = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return "";
-    return user.email || "";
+
+    const user =
+        auth.currentUser;
+
+    return user
+        ? user.email || ""
+        : "";
 };
 
-// =====================================
-// User Role & Permissions (Firestore)
-// =====================================
-
-window.getUserRole = async function () {
-    await waitForAuthReady();
-
-    if (auth.currentUser) {
-        try {
-            const ref = doc(db, "users", auth.currentUser.uid);
-            const snap = await getDoc(ref);
-
-            if (!snap.exists()) {
-                return null;
-            }
-
-            return snap.data().role;
-        } catch (error) {
-            console.error("Error getting user role:", error);
-
-            if (error.code === "permission-denied") {
-                alert(
-                    "Could not read your account's role from the database (permission denied).\n\n" +
-                    "This usually means the Firestore security rules only let admins read the " +
-                    "'users' collection. Ask the admin to update the rule so a signed-in user can " +
-                    "always read their own users/{uid} document."
-                );
-            }
-
-            return null;
-        }
-    }
-
-    // No real signed-in Firebase user — fall back to a local demo login,
-    // if any.
-    const demoUser = getLocalDemoUser();
-    if (demoUser && demoUser.role) {
-        return demoUser.role;
-    }
-
-    return null;
-};
-
-window.isAdmin = async function () {
-    const role = await getUserRole();
-    return role === "admin";
-};
-
-window.isTeacher = async function () {
-    const role = await getUserRole();
-    return role === "teacher";
-};
-
-window.isStudent = async function () {
-    const role = await getUserRole();
-    return role === "student";
-};
-
-window.hasPermission = async function (roleName) {
-    const role = await getUserRole();
-    return role === roleName;
-};
-
-// =====================================
-// Session Management
-// =====================================
-
-window.saveLoginTime = function () {
-    localStorage.setItem("loginTime", new Date().toISOString());
-};
-
-window.getLoginTime = function () {
-    return localStorage.getItem("loginTime");
-};
-
-window.isLoggedIn = function () {
-    return auth.currentUser !== null || getLocalDemoUser() !== null;
-};
 
 window.getCurrentUID = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return "";
-    return user.uid;
+
+    const user =
+        auth.currentUser;
+
+    return user
+        ? user.uid
+        : "";
 };
+
 
 window.getCurrentEmail = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return "";
-    return user.email;
+
+    const user =
+        auth.currentUser;
+
+    return user
+        ? user.email
+        : "";
 };
+
 
 window.getCurrentName = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return "";
-    return user.displayName || user.name || "";
+
+    const user =
+        auth.currentUser;
+
+    return user
+        ? user.displayName || ""
+        : "";
 };
 
-window.showWelcome = function () {
-    const user = auth.currentUser || getLocalDemoUser();
-    if (!user) return;
-    console.log(
-        "Welcome " +
-        (user.displayName || user.name || user.email)
+
+// ======================================================
+// ROLE CHECKS
+// ======================================================
+
+window.isAdmin = async function () {
+
+    return (
+        await window.getUserRole()
+    ) === "admin";
+};
+
+
+window.isTeacher = async function () {
+
+    return (
+        await window.getUserRole()
+    ) === "teacher";
+};
+
+
+window.isStudent = async function () {
+
+    return (
+        await window.getUserRole()
+    ) === "student";
+};
+
+
+window.hasPermission = async function (
+    roleName
+) {
+
+    return (
+        await window.getUserRole()
+    ) === roleName;
+};
+
+
+// ======================================================
+// SESSION
+// ======================================================
+
+window.saveLoginTime = function () {
+
+    localStorage.setItem(
+        "loginTime",
+        new Date().toISOString()
     );
 };
 
-// =====================================
-// Authentication Guards & Auth Listener
-// =====================================
 
-onAuthStateChanged(auth, async (user) => {
-    const activeUser = user || getLocalDemoUser();
-    const currentPage = (window.location.pathname
-        .split("/")
-        .pop() || "index.html").toLowerCase();
+window.getLoginTime = function () {
 
-    if (user) {
-        await ensureUserRoleDoc(user);
+    return localStorage.getItem(
+        "loginTime"
+    );
+};
+
+
+window.isLoggedIn = function () {
+
+    return auth.currentUser !== null;
+};
+
+
+// ======================================================
+// PAGE ACCESS CONTROL
+// ======================================================
+
+async function handlePageAccess(user) {
+
+    const currentPage =
+        getCurrentPage();
+
+
+    // -------------------------------
+    // Public pages
+    // -------------------------------
+
+    if (
+        PUBLIC_PAGES.includes(
+            currentPage
+        )
+    ) {
+
+        if (user) {
+
+            const role =
+                await window.getUserRole();
+
+            if (role === "student") {
+
+                if (
+                    currentPage ===
+                    "login.html"
+                ) {
+
+                    window.location.href =
+                        "student_dashboard.html";
+                }
+
+            } else if (
+                currentPage ===
+                "login.html"
+            ) {
+
+                window.location.href =
+                    "dashboard.html";
+            }
+        }
+
+        return;
     }
 
-    if (activeUser) {
-        saveLoginTime();
-        showWelcome();
+
+    // -------------------------------
+    // Protected pages
+    // -------------------------------
+
+    if (!user) {
+
+        window.location.href =
+            "index.html";
+
+        return;
     }
 
-    const publicPages = ["index.html", "", "login.html"];
-    const studentPages = ["student_dashboard.html"];
 
-    // Login / Public page redirection
-    if (publicPages.includes(currentPage)) {
-        if (activeUser) {
-            const role = await window.getUserRole();
+    window.saveLoginTime();
+
+
+    const role =
+        await window.getUserRole();
+
+
+    // -------------------------------
+    // No role
+    // -------------------------------
+
+    if (!role) {
+
+        alert(
+            "আপনার account-এর role পাওয়া যায়নি।\n\n" +
+            "Firestore users/" +
+            user.uid +
+            " document পরীক্ষা করুন।"
+        );
+
+        await signOut(auth);
+
+        window.location.href =
+            "login.html";
+
+        return;
+    }
+
+
+    // -------------------------------
+    // Student page
+    // -------------------------------
+
+    if (
+        STUDENT_PAGES.includes(
+            currentPage
+        )
+    ) {
+
+        if (
+            role !== "student" &&
+            role !== "admin"
+        ) {
+
             window.location.href =
-                role === "student" ? "student_dashboard.html" : "dashboard.html";
+                "dashboard.html";
         }
+
         return;
     }
 
-    // Protected pages guard - user must be logged in
-    if (!activeUser) {
-        window.location.href = "index.html";
-        return;
-    }
 
-    // Role-based authorization guard
-    const role = await window.getUserRole();
+    // -------------------------------
+    // Admin-only page
+    // -------------------------------
 
-    if (studentPages.includes(currentPage)) {
-        if (role !== "student" && role !== "admin") {
-            window.location.href = "dashboard.html";
-            return;
-        }
-    } else if (ADMIN_ONLY_PAGES.includes(currentPage)) {
-        // Pages restricted to admin only (staff/salary/accounts/settings/fees/reports)
+    if (
+        ADMIN_ONLY_PAGES.includes(
+            currentPage
+        )
+    ) {
+
         if (role !== "admin") {
-            alert("🔒 Access Denied! Admin login is required to access this page.");
-            if (role === "student") {
-                window.location.href = "student_dashboard.html";
-            } else if (role === "teacher") {
-                window.location.href = "dashboard.html";
-            } else {
-                window.location.href = "index.html";
-            }
-            return;
+
+            alert(
+                "Access Denied\n\n" +
+                "এই page শুধুমাত্র Admin ব্যবহার করতে পারবেন।"
+            );
+
+            window.location.href =
+                "dashboard.html";
         }
-    } else {
-        // Dashboard + shared management pages: admin and teacher both allowed
-        if (role !== "admin" && role !== "teacher") {
-            alert("🔒 Access Denied! Staff login is required to access the dashboard.");
-            if (role === "student") {
-                window.location.href = "student_dashboard.html";
-            } else {
-                window.location.href = "index.html";
-            }
-            return;
-        }
+
+        return;
     }
-});
 
-window.authGuard = async function () {
-    const user = await waitForAuthReady();
-    const activeUser = user || getLocalDemoUser();
-    if (!activeUser) {
-        window.location.href = "index.html";
-    }
-};
 
-window.adminGuard = async function () {
-    await window.authGuard();
-    const role = await window.getUserRole();
-    if (role !== "admin") {
-        alert("🔒 Access Denied! Admin login required.");
-        if (role === "student") {
-            window.location.href = "student_dashboard.html";
-        } else {
-            window.location.href = "index.html";
-        }
-        return false;
-    }
-    return true;
-};
-window.teacherGuard = async function () {
-    await window.authGuard();
-    const teacher = await isTeacher();
-    if (!teacher) {
-        alert("Access Denied!");
-        window.location.href = "dashboard.html";
-    }
-};
-
-window.studentGuard = async function () {
-    await window.authGuard();
-    const student = await isStudent();
-    if (!student) {
-        alert("Access Denied!");
-        window.location.href = "dashboard.html";
-    }
-};
-
-window.togglePasswordVisibility = function (inputId, btn) {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-
-    const icon = btn ? btn.querySelector("i") : null;
-    if (input.type === "password") {
-        input.type = "text";
-        if (icon) {
-            icon.className = "bi bi-eye-slash";
-        } else if (btn) {
-            btn.textContent = "🙈";
-        }
-    } else {
-        input.type = "password";
-        if (icon) {
-            icon.className = "bi bi-eye";
-        } else if (btn) {
-            btn.textContent = "👁️";
-        }
-    }
-};
-
-window.AUTH_MODULE_VERSION = "V6.1";
-
-console.log("======================================");
-console.log(" School Management System V6.1");
-console.log(" Firebase Authentication Ready");
-console.log(" Role Based Login Enabled");
-console.log("======================================");
+    // ------------------
