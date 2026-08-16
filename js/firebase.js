@@ -16,12 +16,13 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-s
 // ======================================================
 
 const firebaseConfig = {
-    apiKey: "AIzaSyD_9fnbkTmPaceDGm36ufBzPDqA2u-vdOw",
-    authDomain: "school-management-kgjs1984.firebaseapp.com",
-    projectId: "school-management-kgjs1984",
-    storageBucket: "school-management-kgjs1984.firebasestorage.app",
-    messagingSenderId: "738094251132",
-    appId: "1:738094251132:web:1e7625f16d5cc950bd5df9"
+    apiKey: "AIzaSyCywqr-qBqlDsJeT3QtYKhpT7rWiIPnoAE",
+    authDomain: "school-management-261d8.firebaseapp.com",
+    projectId: "school-management-261d8",
+    storageBucket: "school-management-261d8.firebasestorage.app",
+    messagingSenderId: "468023681751",
+    appId: "1:468023681751:web:4632f7faf169915f88c692",
+    measurementId: "G-50T35Z0LPZ"
 };
 
 // This project uses Firestore's default database (created via
