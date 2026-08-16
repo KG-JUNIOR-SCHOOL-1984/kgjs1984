@@ -197,9 +197,8 @@ window.login = async function () {
             errorMsg = "Firebase Email/Password Auth provider is disabled in Firebase Console. Using Demo Quick Login buttons below is recommended.";
         }
         alert("Login Failed: " + errorMsg);
-       
-) 
-);
+}
+};
 
 // =====================================
 // Quick Demo Login (for preview testing)
