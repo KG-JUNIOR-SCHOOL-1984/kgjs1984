@@ -67,6 +67,30 @@ async function loadFeeForEdit() {
     await window.editFee(docId);
 }
 
+// -------------------------------------
+// Prefill From Fee Due List ("Collect" button)
+// -------------------------------------
+
+async function loadFeeFromQueryParams() {
+
+    const params = new URLSearchParams(window.location.search);
+
+    const studentId = params.get("studentId");
+
+    if (!studentId) return;
+
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+
+    setVal("studentId", studentId);
+
+    await window.loadStudentInfo();
+
+    if (params.get("feeMonth")) setVal("feeMonth", params.get("feeMonth"));
+    if (params.get("feeType")) setVal("feeType", params.get("feeType"));
+    if (params.get("amount")) setVal("feeAmount", params.get("amount"));
+
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 
     const paymentDate =
@@ -81,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCart();
 
     loadFeeForEdit();
+
+    loadFeeFromQueryParams();
 
 });
 
@@ -861,3 +887,4 @@ console.log("==================================");
 console.log("Fee Module Ready");
 console.log("Version : V8");
 console.log("==================================");
+        
