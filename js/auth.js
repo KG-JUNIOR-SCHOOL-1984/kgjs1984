@@ -45,6 +45,7 @@ const ADMIN_ONLY_PAGES = [
     "fees.html",
     "fees_list.html",
     "fee_receipt.html",
+    "fee_due.html",
     "reports.html"
 ];
 
