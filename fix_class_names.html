@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fix Class Names | School Management System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-primary shadow">
+  <div class="container">
+    <span class="navbar-brand fw-bold">🏫 School Management System</span>
+    <a href="classes_list.html" class="btn btn-light btn-sm">⬅ Back to Class List</a>
+  </div>
+</nav>
+
+<div class="container py-4">
+
+  <h3 class="mb-2">🔧 One-Time Tool: Fix Class Names</h3>
+  <p class="text-muted">
+    This converts old-style class names like <code>Std - I</code>, <code>Std-II</code>, <code>STD III</code>
+    into <code>Class 1</code>, <code>Class 2</code>, <code>Class 3</code>. It only changes the
+    <b>name</b> field &mdash; sections, class teacher, and order stay untouched, and every student/result/fee
+    record automatically shows the new name since they all read from the same Classes list.
+  </p>
+
+  <div class="card shadow mb-3">
+    <div class="card-header bg-primary text-white">Preview</div>
+    <div class="card-body">
+      <div id="status" class="text-muted">Loading classes...</div>
+      <table class="table table-bordered mt-3 d-none" id="previewTable">
+        <thead class="table-light">
+          <tr>
+            <th style="width:40px;"><input type="checkbox" id="checkAll" checked></th>
+            <th>Current Name</th>
+            <th>New Name</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="btn btn-success" id="applyBtn" disabled>✅ Apply Selected Renames</button>
+  <div id="result" class="mt-3"></div>
+
+</div>
+
+<script type="module">
+import { db, auth } from "./js/firebase.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import {
+    collection,
+    getDocs,
+    doc,
+    updateDoc,
+    orderBy,
+    query
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+const statusEl = document.getElementById("status");
+const table = document.getElementById("previewTable");
+const tbody = document.getElementById("previewBody");
+const applyBtn = document.getElementById("applyBtn");
+const resultEl = document.getElementById("result");
+const checkAll = document.getElementById("checkAll");
+
+// -----------------------------------------------------
+// Roman numeral (I - XII, upper or lower case) -> number
+// -----------------------------------------------------
+const ROMAN_MAP = {
+    i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6,
+    vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12
+};
+
+// Words like "One", "Two" ... in case some classes were typed that way
+const WORD_MAP = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+    seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+    nursery: "Nursery", lkg: "LKG", ukg: "UKG", kg: "KG"
+};
+
+function convertClassName(raw) {
+    const name = raw.trim();
+
+    // Keep Nursery / LKG / UKG / KG as-is (common pre-primary labels)
+    if (/^(nursery|lkg|ukg|kg|play\s*group|pg)$/i.test(name)) {
+        return name;
+    }
+
+    // Match: STD / Std / Class / Standard, optional " - " or " " or ".",
+    // then a roman numeral or plain number or word number
+    const m = name.match(/^(?:std|standard|class)\.?\s*[-–—.]?\s*([ivx]+|\d+|[a-z]+)$/i);
+
+    if (!m) return null; // doesn't match the old pattern, leave untouched
+
+    const token = m[1].toLowerCase();
+
+    let num = null;
+    if (/^\d+$/.test(token)) {
+        num = parseInt(token, 10);
+    } else if (ROMAN_MAP[token] !== undefined) {
+        num = ROMAN_MAP[token];
+    } else if (WORD_MAP[token] !== undefined) {
+        const w = WORD_MAP[token];
+        return typeof w === "number" ? `Class ${w}` : w;
+    } else {
+        return null;
+    }
+
+    return `Class ${num}`;
+}
+
+let pending = []; // { id, oldName, newName }
+
+async function loadClasses() {
+    try {
+        const snap = await getDocs(query(collection(db, "classes"), orderBy("order")));
+
+        if (snap.empty) {
+            statusEl.textContent = "No classes found in the database.";
+            return;
+        }
+
+        snap.forEach((docSnap) => {
+            const data = docSnap.data();
+            const oldName = data.name || "";
+            const newName = convertClassName(oldName);
+
+            if (newName && newName !== oldName) {
+                pending.push({ id: docSnap.id, oldName, newName });
+            }
+        });
+
+        if (pending.length === 0) {
+            statusEl.textContent = "✅ Nothing to fix — all class names already look fine.";
+            return;
+        }
+
+        statusEl.classList.add("d-none");
+        table.classList.remove("d-none");
+
+        pending.forEach((item, idx) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><input type="checkbox" class="rowCheck" data-idx="${idx}" checked></td>
+                <td>${item.oldName}</td>
+                <td><input type="text" class="form-control form-control-sm newNameInput" data-idx="${idx}" value="${item.newName}"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        applyBtn.disabled = false;
+
+    } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Error loading classes: " + error.message;
+    }
+}
+
+checkAll.addEventListener("change", () => {
+    document.querySelectorAll(".rowCheck").forEach((cb) => cb.checked = checkAll.checked);
+});
+
+applyBtn.addEventListener("click", async () => {
+    applyBtn.disabled = true;
+    resultEl.innerHTML = `<div class="text-muted">Applying changes...</div>`;
+
+    let success = 0;
+    let failed = 0;
+
+    const rows = document.querySelectorAll("#previewBody tr");
+
+    for (const row of rows) {
+        const checkbox = row.querySelector(".rowCheck");
+        const input = row.querySelector(".newNameInput");
+        const idx = Number(checkbox.dataset.idx);
+
+        if (!checkbox.checked) continue;
+
+        const item = pending[idx];
+        const newName = input.value.trim();
+
+        if (!newName) continue;
+
+        try {
+            await updateDoc(doc(db, "classes", item.id), { name: newName });
+            success++;
+        } catch (error) {
+            console.error("Failed for", item.oldName, error);
+            failed++;
+        }
+    }
+
+    resultEl.innerHTML = `
+        <div class="alert ${failed ? "alert-warning" : "alert-success"}">
+            ✅ Updated: ${success} class(es).
+            ${failed ? `⚠️ Failed: ${failed} class(es) — check console for details.` : ""}
+        </div>
+        <a href="classes_list.html" class="btn btn-primary">Go to Class List</a>
+    `;
+});
+
+// -----------------------------------------------------
+// Require login (admin) before running
+// -----------------------------------------------------
+onAuthStateChanged(auth, (user) => {
+    if (!user) {
+        statusEl.innerHTML = `⚠️ Please <a href="login.html">log in</a> first, then open this page again.`;
+        return;
+    }
+    loadClasses();
+});
+</script>
+
+</body>
+</html>
