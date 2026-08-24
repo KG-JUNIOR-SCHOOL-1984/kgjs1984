@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bulk Set Monthly Fee | School Management System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-primary shadow">
+  <div class="container">
+    <span class="navbar-brand fw-bold">🏫 School Management System</span>
+    <a href="fees_due.html" class="btn btn-light btn-sm">⬅ Back to Fees Due</a>
+  </div>
+</nav>
+
+<div class="container py-4">
+
+  <h3 class="mb-2">💰 One-Time Tool: Bulk Set Monthly Fee</h3>
+  <p class="text-muted">
+    The <b>Fees Due</b> list only shows a student if their profile has a <b>Monthly Fee</b>
+    amount greater than 0. This tool lets you set a Monthly Fee amount for every student in a
+    class at once, instead of editing each student one by one.
+    <br><br>
+    Only students whose current Monthly Fee is <b>empty or 0</b> will be changed &mdash;
+    students who already have an amount set are left untouched, unless you tick
+    "Overwrite existing amounts" below.
+  </p>
+
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="overwriteExisting">
+    <label class="form-check-label" for="overwriteExisting">
+      Overwrite existing amounts too (use with care)
+    </label>
+  </div>
+
+  <div class="card shadow mb-3">
+    <div class="card-header bg-primary text-white">Step 1 — Set fee amount per class</div>
+    <div class="card-body">
+      <div id="status" class="text-muted">Loading classes...</div>
+      <table class="table table-bordered mt-3 d-none" id="classTable">
+        <thead class="table-light">
+          <tr>
+            <th style="width:40px;"><input type="checkbox" id="checkAll" checked></th>
+            <th>Class</th>
+            <th>Students (missing fee)</th>
+            <th style="width:220px;">Monthly Fee (৳)</th>
+          </tr>
+        </thead>
+        <tbody id="classBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="btn btn-success" id="applyBtn" disabled>✅ Apply Monthly Fee</button>
+  <div id="result" class="mt-3"></div>
+
+</div>
+
+<script type="module">
+import { db, auth } from "./js/firebase.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import { fetchClasses } from "./js/classHelper.js";
+import {
+    collection,
+    getDocs,
+    doc,
+    query,
+    where,
+    writeBatch
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+const statusEl = document.getElementById("status");
+const table = document.getElementById("classTable");
+const tbody = document.getElementById("classBody");
+const applyBtn = document.getElementById("applyBtn");
+const resultEl = document.getElementById("result");
+const checkAll = document.getElementById("checkAll");
+const overwriteBox = document.getElementById("overwriteExisting");
+
+const studentsRef = collection(db, "students");
+
+let classRows = []; // { name, missingCount, totalCount }
+
+async function loadClasses() {
+    try {
+        const classes = await fetchClasses();
+
+        if (classes.length === 0) {
+            statusEl.textContent = "No classes found.";
+            return;
+        }
+
+        statusEl.textContent = "Counting students per class...";
+
+        for (const cls of classes) {
+            const snap = await getDocs(query(studentsRef, where("studentClass", "==", cls.name)));
+
+            let missing = 0;
+            snap.forEach((docSnap) => {
+                const fee = Number(docSnap.data().monthlyFee || 0);
+                if (fee <= 0) missing++;
+            });
+
+            classRows.push({ name: cls.name, missingCount: missing, totalCount: snap.size });
+        }
+
+        statusEl.classList.add("d-none");
+        table.classList.remove("d-none");
+
+        classRows.forEach((row, idx) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><input type="checkbox" class="rowCheck" data-idx="${idx}" ${row.missingCount > 0 ? "checked" : ""}></td>
+                <td>${row.name}</td>
+                <td>${row.missingCount} of ${row.totalCount} missing</td>
+                <td><input type="number" min="0" class="form-control form-control-sm feeInput" data-idx="${idx}" placeholder="e.g. 500"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        applyBtn.disabled = false;
+
+    } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Error loading classes: " + error.message;
+    }
+}
+
+checkAll.addEventListener("change", () => {
+    document.querySelectorAll(".rowCheck").forEach((cb) => cb.checked = checkAll.checked);
+});
+
+applyBtn.addEventListener("click", async () => {
+    applyBtn.disabled = true;
+    resultEl.innerHTML = `<div class="text-muted">Applying Monthly Fee amounts... please wait.</div>`;
+
+    const overwrite = overwriteBox.checked;
+    const rows = document.querySelectorAll("#classBody tr");
+    let summary = [];
+
+    for (const row of rows) {
+        const checkbox = row.querySelector(".rowCheck");
+        const input = row.querySelector(".feeInput");
+        const idx = Number(checkbox.dataset.idx);
+
+        if (!checkbox.checked) continue;
+
+        const feeAmount = Number(input.value || 0);
+        if (!feeAmount || feeAmount <= 0) continue;
+
+        const clsName = classRows[idx].name;
+
+        try {
+            const snap = await getDocs(query(studentsRef, where("studentClass", "==", clsName)));
+
+            let batch = writeBatch(db);
+            let count = 0;
+            let updated = 0;
+
+            for (const docSnap of snap.docs) {
+                const current = Number(docSnap.data().monthlyFee || 0);
+                if (current > 0 && !overwrite) continue;
+
+                batch.update(doc(db, "students", docSnap.id), { monthlyFee: feeAmount });
+                count++;
+                updated++;
+
+                if (count === 450) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    count = 0;
+                }
+            }
+
+            if (count > 0) {
+                await batch.commit();
+            }
+
+            summary.push(`✅ ${clsName}: set ৳${feeAmount} for ${updated} student(s).`);
+
+        } catch (error) {
+            console.error("Failed for", clsName, error);
+            summary.push(`⚠️ Failed for ${clsName}: ${error.message}`);
+        }
+    }
+
+    if (summary.length === 0) {
+        summary.push("Nothing applied — enter an amount and tick at least one class.");
+    }
+
+    resultEl.innerHTML = `
+        <div class="alert alert-success">
+            ${summary.map(s => `<div>${s}</div>`).join("")}
+        </div>
+        <a href="fees_due.html" class="btn btn-primary">Check Fees Due List</a>
+    `;
+
+    applyBtn.disabled = false;
+});
+
+// -----------------------------------------------------
+// Require login before running
+// -----------------------------------------------------
+onAuthStateChanged(auth, (user) => {
+    if (!user) {
+        statusEl.innerHTML = `⚠️ Please <a href="login.html">log in</a> first, then open this page again.`;
+        return;
+    }
+    loadClasses();
+});
+</script>
+
+</body>
+</html>
